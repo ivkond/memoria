@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import Any, Awaitable, Callable
 
 from fastmcp import Context
@@ -8,6 +9,12 @@ from fastmcp.server.middleware import Middleware
 from fastmcp.server.middleware.middleware import MiddlewareContext
 
 USER_ID_STATE_KEY = "memory_mcp_user_id"
+
+
+async def _maybe_await(value: Any) -> Any:
+    if inspect.isawaitable(value):
+        return await value
+    return value
 
 
 class UserHeaderMiddleware(Middleware):
@@ -28,13 +35,13 @@ class UserHeaderMiddleware(Middleware):
             )
 
         if context.fastmcp_context is not None:
-            context.fastmcp_context.set_state(USER_ID_STATE_KEY, user_id.strip())
+            await _maybe_await(context.fastmcp_context.set_state(USER_ID_STATE_KEY, user_id.strip()))
 
         return await call_next(context)
 
 
-def require_user_id(ctx: Context, header_name: str) -> str:
-    user_id = ctx.get_state(USER_ID_STATE_KEY)
+async def require_user_id(ctx: Context, header_name: str) -> str:
+    user_id = await _maybe_await(ctx.get_state(USER_ID_STATE_KEY))
     if isinstance(user_id, str) and user_id.strip():
         return user_id.strip()
 
@@ -47,4 +54,3 @@ def require_user_id(ctx: Context, header_name: str) -> str:
         f"Missing required header `{header_name}`. "
         "Pass this header in MCP server connection settings."
     )
-

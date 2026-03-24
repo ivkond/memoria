@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from fastmcp import Context, FastMCP
 from fastmcp.server.middleware.middleware import MiddlewareContext
@@ -26,23 +28,43 @@ def _request_with_headers(headers: dict[str, str]) -> Request:
     return Request(scope)
 
 
-def test_require_user_id_reads_context_state() -> None:
+async def _maybe_await(value: Any) -> Any:
+    if hasattr(value, "__await__"):
+        return await value
+    return value
+
+
+class AsyncStateContext:
+    def __init__(self) -> None:
+        self._state: dict[str, Any] = {}
+
+    async def set_state(self, key: str, value: Any) -> None:
+        self._state[key] = value
+
+    async def get_state(self, key: str) -> Any:
+        return self._state.get(key)
+
+
+@pytest.mark.asyncio
+async def test_require_user_id_reads_context_state() -> None:
     context = Context(FastMCP("test"))
-    context.set_state(USER_ID_STATE_KEY, "user-from-state")
-    assert require_user_id(context, "x-user-id") == "user-from-state"
+    await _maybe_await(context.set_state(USER_ID_STATE_KEY, "user-from-state"))
+    assert await require_user_id(context, "x-user-id") == "user-from-state"
 
 
-def test_require_user_id_reads_http_header(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.asyncio
+async def test_require_user_id_reads_http_header(monkeypatch: pytest.MonkeyPatch) -> None:
     context = Context(FastMCP("test"))
     monkeypatch.setattr(
         "memory_mcp_server.auth.get_http_request",
         lambda: _request_with_headers({"x-user-id": "header-user"}),
     )
 
-    assert require_user_id(context, "x-user-id") == "header-user"
+    assert await require_user_id(context, "x-user-id") == "header-user"
 
 
-def test_require_user_id_raises_without_header(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.asyncio
+async def test_require_user_id_raises_without_header(monkeypatch: pytest.MonkeyPatch) -> None:
     context = Context(FastMCP("test"))
     monkeypatch.setattr(
         "memory_mcp_server.auth.get_http_request",
@@ -50,7 +72,15 @@ def test_require_user_id_raises_without_header(monkeypatch: pytest.MonkeyPatch) 
     )
 
     with pytest.raises(ValueError, match="x-user-id"):
-        require_user_id(context, "x-user-id")
+        await require_user_id(context, "x-user-id")
+
+
+@pytest.mark.asyncio
+async def test_require_user_id_supports_async_context_state() -> None:
+    context = AsyncStateContext()
+    await context.set_state(USER_ID_STATE_KEY, "async-user")
+
+    assert await require_user_id(context, "x-user-id") == "async-user"
 
 
 @pytest.mark.asyncio
@@ -69,7 +99,26 @@ async def test_user_header_middleware_sets_context_state(monkeypatch: pytest.Mon
     result = await middleware.on_call_tool(mw_context, call_next)
 
     assert result == "ok"
-    assert context.get_state(USER_ID_STATE_KEY) == "employee-1"
+    assert await _maybe_await(context.get_state(USER_ID_STATE_KEY)) == "employee-1"
+
+
+@pytest.mark.asyncio
+async def test_user_header_middleware_supports_async_context_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    middleware = UserHeaderMiddleware("x-user-id")
+    context = AsyncStateContext()
+    mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
+    monkeypatch.setattr(
+        "memory_mcp_server.auth.get_http_request",
+        lambda: _request_with_headers({"x-user-id": "employee-2"}),
+    )
+
+    async def call_next(_: MiddlewareContext[object]) -> str:
+        return "ok"
+
+    result = await middleware.on_call_tool(mw_context, call_next)
+
+    assert result == "ok"
+    assert await context.get_state(USER_ID_STATE_KEY) == "employee-2"
 
 
 @pytest.mark.asyncio
@@ -87,4 +136,3 @@ async def test_user_header_middleware_fails_without_header(monkeypatch: pytest.M
 
     with pytest.raises(ValueError, match="x-user-id"):
         await middleware.on_call_tool(mw_context, call_next)
-

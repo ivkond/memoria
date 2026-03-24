@@ -46,7 +46,7 @@ def create_server(
             "If messages are omitted, text is wrapped into a single user message."
         )
     )
-    def add_memory(
+    async def add_memory(
         text: str = Field(description="Natural language memory payload."),
         messages: list[dict[str, str]] | None = Field(
             default=None,
@@ -72,7 +72,7 @@ def create_server(
     ) -> dict[str, Any]:
         if ctx is None:
             raise ValueError("Tool context is required.")
-        user_id = require_user_id(ctx, app_settings.user_header_name)
+        user_id = await require_user_id(ctx, app_settings.user_header_name)
         return service.add_memory(
             user_id=user_id,
             text=text,
@@ -84,7 +84,7 @@ def create_server(
         )
 
     @mcp.tool(description="Semantic search memories for current user.")
-    def search_memories(
+    async def search_memories(
         query: str = Field(description="Search query."),
         limit: int = Field(default=20, ge=1, le=200),
         filters: dict[str, Any] | None = Field(default=None),
@@ -94,7 +94,7 @@ def create_server(
     ) -> dict[str, Any]:
         if ctx is None:
             raise ValueError("Tool context is required.")
-        user_id = require_user_id(ctx, app_settings.user_header_name)
+        user_id = await require_user_id(ctx, app_settings.user_header_name)
         return service.search_memories(
             user_id=user_id,
             query=query,
@@ -105,52 +105,52 @@ def create_server(
         )
 
     @mcp.tool(description="Get single memory by ID.")
-    def get_memory(
+    async def get_memory(
         memory_id: str = Field(description="Memory ID."),
         ctx: Context | None = None,
     ) -> dict[str, Any] | None:
         if ctx is None:
             raise ValueError("Tool context is required.")
-        user_id = require_user_id(ctx, app_settings.user_header_name)
+        user_id = await require_user_id(ctx, app_settings.user_header_name)
         return service.get_memory(user_id=user_id, memory_id=memory_id)
 
     @mcp.tool(description="List memories for current user.")
-    def get_memories(
+    async def get_memories(
         limit: int = Field(default=100, ge=1, le=500),
         filters: dict[str, Any] | None = Field(default=None),
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         if ctx is None:
             raise ValueError("Tool context is required.")
-        user_id = require_user_id(ctx, app_settings.user_header_name)
+        user_id = await require_user_id(ctx, app_settings.user_header_name)
         return service.get_memories(user_id=user_id, limit=limit, filters=filters)
 
     @mcp.tool(description="Update memory text by ID.")
-    def update_memory(
+    async def update_memory(
         memory_id: str = Field(description="Memory ID."),
         data: str = Field(description="Updated memory text."),
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         if ctx is None:
             raise ValueError("Tool context is required.")
-        user_id = require_user_id(ctx, app_settings.user_header_name)
+        user_id = await require_user_id(ctx, app_settings.user_header_name)
         return service.update_memory(user_id=user_id, memory_id=memory_id, data=data)
 
     @mcp.tool(description="Delete memory by ID.")
-    def delete_memory(
+    async def delete_memory(
         memory_id: str = Field(description="Memory ID."),
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         if ctx is None:
             raise ValueError("Tool context is required.")
-        user_id = require_user_id(ctx, app_settings.user_header_name)
+        user_id = await require_user_id(ctx, app_settings.user_header_name)
         return service.delete_memory(user_id=user_id, memory_id=memory_id)
 
     @mcp.tool(description="Delete all memories for current user.")
-    def delete_all_memories(ctx: Context | None = None) -> dict[str, Any]:
+    async def delete_all_memories(ctx: Context | None = None) -> dict[str, Any]:
         if ctx is None:
             raise ValueError("Tool context is required.")
-        user_id = require_user_id(ctx, app_settings.user_header_name)
+        user_id = await require_user_id(ctx, app_settings.user_header_name)
         return service.delete_all_memories(user_id=user_id)
 
     @mcp.tool(
@@ -159,13 +159,13 @@ def create_server(
             "Relations are available only when mem0 graph_store is enabled."
         )
     )
-    def list_entities(
+    async def list_entities(
         limit: int = Field(default=100, ge=1, le=500),
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         if ctx is None:
             raise ValueError("Tool context is required.")
-        user_id = require_user_id(ctx, app_settings.user_header_name)
+        user_id = await require_user_id(ctx, app_settings.user_header_name)
         return service.list_entities(user_id=user_id, limit=limit)
 
     @mcp.tool(
@@ -174,10 +174,10 @@ def create_server(
             "In mem0 OSS this is mapped to delete_all_memories for that user scope."
         )
     )
-    def delete_entities(ctx: Context | None = None) -> dict[str, Any]:
+    async def delete_entities(ctx: Context | None = None) -> dict[str, Any]:
         if ctx is None:
             raise ValueError("Tool context is required.")
-        user_id = require_user_id(ctx, app_settings.user_header_name)
+        user_id = await require_user_id(ctx, app_settings.user_header_name)
         response = service.delete_entities(user_id=user_id)
         return response.model_dump()
 
