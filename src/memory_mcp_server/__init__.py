@@ -1,2 +1,0 @@
-"""memory-mcp-server package."""
-

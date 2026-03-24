@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from memory_mcp_server.schemas import DeleteEntitiesResponse
-from memory_mcp_server.service import MemoryService
+from memoria.schemas import DeleteEntitiesResponse
+from memoria.service import MemoryService
 
 
 class FakeAdapter:

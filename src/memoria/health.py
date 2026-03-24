@@ -7,8 +7,8 @@ from urllib.request import Request, urlopen
 
 from qdrant_client import QdrantClient
 
-from memory_mcp_server.schemas import HealthComponent, HealthResponse
-from memory_mcp_server.settings import Settings
+from memoria.schemas import HealthComponent, HealthResponse
+from memoria.settings import Settings
 
 
 class HealthChecker:

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from memory_mcp_server.health import HealthChecker
-from memory_mcp_server.schemas import HealthComponent
-from memory_mcp_server.settings import Settings
+from memoria.health import HealthChecker
+from memoria.schemas import HealthComponent
+from memoria.settings import Settings
 
 
 def test_health_status_ok_when_all_checks_pass(monkeypatch) -> None:

@@ -4,8 +4,8 @@ from typing import Any, Callable, Protocol, TypeVar
 
 from mem0 import Memory
 
-from memory_mcp_server.schemas import DeleteEntitiesResponse
-from memory_mcp_server.settings import Settings
+from memoria.schemas import DeleteEntitiesResponse
+from memoria.settings import Settings
 
 T = TypeVar("T")
 
@@ -72,8 +72,8 @@ class Mem0Adapter:
             if exc.__class__.__name__ == "APIConnectionError":
                 raise RuntimeError(
                     "Cannot reach configured LLM/embedder endpoint for mem0. "
-                    f"Check MEMORY_MCP_MEM0_LLM_BASE_URL={self._settings.mem0_llm_base_url} "
-                    f"and MEMORY_MCP_MEM0_EMBEDDER_BASE_URL={self._settings.mem0_embedder_base_url}. "
+                    f"Check MEMORIA_MEM0_LLM_BASE_URL={self._settings.mem0_llm_base_url} "
+                    f"and MEMORIA_MEM0_EMBEDDER_BASE_URL={self._settings.mem0_embedder_base_url}. "
                     "If running in Docker on Linux and using host service, add "
                     "`extra_hosts: [\"host.docker.internal:host-gateway\"]`."
                 ) from exc
@@ -136,8 +136,8 @@ class Mem0Adapter:
             if not settings.mem0_graph_url or not settings.mem0_graph_username or not settings.mem0_graph_password:
                 raise ValueError(
                     "Graph memory is enabled, but MemGraph credentials are incomplete. "
-                    "Set MEMORY_MCP_MEM0_GRAPH_URL, MEMORY_MCP_MEM0_GRAPH_USERNAME, "
-                    "and MEMORY_MCP_MEM0_GRAPH_PASSWORD."
+                    "Set MEMORIA_MEM0_GRAPH_URL, MEMORIA_MEM0_GRAPH_USERNAME, "
+                    "and MEMORIA_MEM0_GRAPH_PASSWORD."
                 )
 
             graph_config: dict[str, Any] = {

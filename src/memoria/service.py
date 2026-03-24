@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from memory_mcp_server.adapter import MemoryAdapter
-from memory_mcp_server.schemas import DeleteEntitiesResponse
+from memoria.adapter import MemoryAdapter
+from memoria.schemas import DeleteEntitiesResponse
 
 
 class MemoryService:

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from memory_mcp_server.adapter import Mem0Adapter
-from memory_mcp_server.settings import Settings
+from memoria.adapter import Mem0Adapter
+from memoria.settings import Settings
 
 
 def test_build_config_includes_memgraph_when_enabled() -> None:

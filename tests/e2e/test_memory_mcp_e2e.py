@@ -22,8 +22,8 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from testcontainers.core.container import DockerContainer
 
-from memory_mcp_server.server import create_server
-from memory_mcp_server.settings import Settings
+from memoria.server import create_server
+from memoria.settings import Settings
 
 pytestmark = pytest.mark.e2e
 

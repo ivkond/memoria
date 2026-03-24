@@ -7,7 +7,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.server.middleware.middleware import MiddlewareContext
 from starlette.requests import Request
 
-from memory_mcp_server.auth import USER_ID_STATE_KEY, UserHeaderMiddleware, require_user_id
+from memoria.auth import USER_ID_STATE_KEY, UserHeaderMiddleware, require_user_id
 
 
 def _request_with_headers(headers: dict[str, str]) -> Request:
@@ -56,7 +56,7 @@ async def test_require_user_id_reads_context_state() -> None:
 async def test_require_user_id_reads_http_header(monkeypatch: pytest.MonkeyPatch) -> None:
     context = Context(FastMCP("test"))
     monkeypatch.setattr(
-        "memory_mcp_server.auth.get_http_request",
+        "memoria.auth.get_http_request",
         lambda: _request_with_headers({"x-user-id": "header-user"}),
     )
 
@@ -67,7 +67,7 @@ async def test_require_user_id_reads_http_header(monkeypatch: pytest.MonkeyPatch
 async def test_require_user_id_raises_without_header(monkeypatch: pytest.MonkeyPatch) -> None:
     context = Context(FastMCP("test"))
     monkeypatch.setattr(
-        "memory_mcp_server.auth.get_http_request",
+        "memoria.auth.get_http_request",
         lambda: _request_with_headers({}),
     )
 
@@ -89,7 +89,7 @@ async def test_user_header_middleware_sets_context_state(monkeypatch: pytest.Mon
     context = Context(FastMCP("test"))
     mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
     monkeypatch.setattr(
-        "memory_mcp_server.auth.get_http_request",
+        "memoria.auth.get_http_request",
         lambda: _request_with_headers({"x-user-id": "employee-1"}),
     )
 
@@ -108,7 +108,7 @@ async def test_user_header_middleware_supports_async_context_state(monkeypatch: 
     context = AsyncStateContext()
     mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
     monkeypatch.setattr(
-        "memory_mcp_server.auth.get_http_request",
+        "memoria.auth.get_http_request",
         lambda: _request_with_headers({"x-user-id": "employee-2"}),
     )
 
@@ -127,7 +127,7 @@ async def test_user_header_middleware_fails_without_header(monkeypatch: pytest.M
     context = Context(FastMCP("test"))
     mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
     monkeypatch.setattr(
-        "memory_mcp_server.auth.get_http_request",
+        "memoria.auth.get_http_request",
         lambda: _request_with_headers({}),
     )
 

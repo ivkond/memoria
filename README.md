@@ -35,7 +35,7 @@ Available endpoints:
 
 ```bash
 python -m pip install -e .[dev]
-python -m memory_mcp_server
+python -m memoria
 ```
 
 Defaults:
@@ -47,7 +47,7 @@ Defaults:
 ```json
 {
   "mcpServers": {
-    "memory": {
+    "memoria": {
       "type": "streamable-http",
       "url": "http://localhost:8080/mcp",
       "headers": {
@@ -96,31 +96,31 @@ This keeps operations transparent and makes it easy to self-host.
 ## ⚙️ Configuration
 
 Core env vars:
-- `MEMORY_MCP_HOST`
-- `MEMORY_MCP_PORT`
-- `MEMORY_MCP_MCP_PATH`
-- `MEMORY_MCP_USER_HEADER_NAME`
-- `MEMORY_MCP_QDRANT_HOST`
-- `MEMORY_MCP_QDRANT_PORT`
-- `MEMORY_MCP_QDRANT_COLLECTION_NAME`
+- `MEMORIA_HOST`
+- `MEMORIA_PORT`
+- `MEMORIA_MCP_PATH`
+- `MEMORIA_USER_HEADER_NAME`
+- `MEMORIA_QDRANT_HOST`
+- `MEMORIA_QDRANT_PORT`
+- `MEMORIA_QDRANT_COLLECTION_NAME`
 
 mem0/LLM/embedder:
-- `MEMORY_MCP_MEM0_LLM_PROVIDER` (`vllm` or `openai`)
-- `MEMORY_MCP_MEM0_LLM_BASE_URL`
-- `MEMORY_MCP_MEM0_LLM_MODEL`
-- `MEMORY_MCP_MEM0_EMBEDDER_PROVIDER`
-- `MEMORY_MCP_MEM0_EMBEDDER_BASE_URL`
-- `MEMORY_MCP_MEM0_EMBEDDER_MODEL`
-- `MEMORY_MCP_MEM0_API_KEY`
-- `MEMORY_MCP_MEM0_LLM_API_KEY` (optional override)
-- `MEMORY_MCP_MEM0_EMBEDDER_API_KEY` (optional override)
+- `MEMORIA_MEM0_LLM_PROVIDER` (`vllm` or `openai`)
+- `MEMORIA_MEM0_LLM_BASE_URL`
+- `MEMORIA_MEM0_LLM_MODEL`
+- `MEMORIA_MEM0_EMBEDDER_PROVIDER`
+- `MEMORIA_MEM0_EMBEDDER_BASE_URL`
+- `MEMORIA_MEM0_EMBEDDER_MODEL`
+- `MEMORIA_MEM0_API_KEY`
+- `MEMORIA_MEM0_LLM_API_KEY` (optional override)
+- `MEMORIA_MEM0_EMBEDDER_API_KEY` (optional override)
 
 Graph mode:
-- `MEMORY_MCP_MEM0_ENABLE_GRAPH` (`true`/`false`)
-- `MEMORY_MCP_MEM0_GRAPH_PROVIDER` (`memgraph`)
-- `MEMORY_MCP_MEM0_GRAPH_URL` (example: `bolt://memgraph:7687`)
-- `MEMORY_MCP_MEM0_GRAPH_USERNAME`
-- `MEMORY_MCP_MEM0_GRAPH_PASSWORD`
+- `MEMORIA_MEM0_ENABLE_GRAPH` (`true`/`false`)
+- `MEMORIA_MEM0_GRAPH_PROVIDER` (`memgraph`)
+- `MEMORIA_MEM0_GRAPH_URL` (example: `bolt://memgraph:7687`)
+- `MEMORIA_MEM0_GRAPH_USERNAME`
+- `MEMORIA_MEM0_GRAPH_PASSWORD`
 
 ## ✅ Tests
 

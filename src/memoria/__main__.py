@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from memory_mcp_server.server import create_server
-from memory_mcp_server.settings import Settings
+from memoria.server import create_server
+from memoria.settings import Settings
 
 
 def main() -> None:

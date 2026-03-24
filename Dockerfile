@@ -9,5 +9,4 @@ RUN pip install --no-cache-dir .
 
 EXPOSE 8080
 
-CMD ["python", "-m", "memory_mcp_server"]
-
+CMD ["python", "-m", "memoria"]

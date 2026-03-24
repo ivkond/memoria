@@ -7,11 +7,11 @@ from pydantic import Field
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from memory_mcp_server.adapter import Mem0Adapter, MemoryAdapter
-from memory_mcp_server.auth import UserHeaderMiddleware, require_user_id
-from memory_mcp_server.health import HealthChecker
-from memory_mcp_server.service import MemoryService
-from memory_mcp_server.settings import Settings
+from memoria.adapter import Mem0Adapter, MemoryAdapter
+from memoria.auth import UserHeaderMiddleware, require_user_id
+from memoria.health import HealthChecker
+from memoria.service import MemoryService
+from memoria.settings import Settings
 
 
 def create_server(
@@ -25,7 +25,7 @@ def create_server(
     service = MemoryService(app_adapter)
 
     mcp = FastMCP(
-        "memory-mcp-server",
+        "memoria",
         instructions=(
             "Standalone MCP server for mem0-backed user memory. "
             "Every tool call requires x-user-id from a trusted upstream and scopes data to that user. "
