@@ -124,10 +124,17 @@ Graph mode:
 
 ## ✅ Tests
 
+Quality checks:
+
+```bash
+python -m ruff check .
+python -m mypy src
+```
+
 Unit tests:
 
 ```bash
-python -m pytest -q
+python -m pytest -q tests/unit --cov=src/memoria --cov-report=term-missing
 ```
 
 E2E tests (Docker + Testcontainers):

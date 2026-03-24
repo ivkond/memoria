@@ -2,29 +2,87 @@ name: CI
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
   pull_request:
-    branches: [ "master" ]
+    branches: ["master"]
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
+  workflow_call:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  unit-tests:
+  quality:
+    uses: ./.github/workflows/ci-quality.yml
+    permissions:
+      contents: read
+
+  tests:
+    uses: ./.github/workflows/ci-tests.yml
+    permissions:
+      contents: read
+
+  e2e:
+    uses: ./.github/workflows/ci-e2e.yml
+    permissions:
+      contents: read
+
+  save-pr-meta:
+    name: Save PR Metadata
+    if: always() && github.event_name == 'pull_request'
+    needs: [quality, tests, e2e]
     runs-on: ubuntu-latest
-
+    timeout-minutes: 5
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Write metadata
+        shell: bash
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+          QUALITY: ${{ needs.quality.result }}
+          TESTS: ${{ needs.tests.result }}
+          E2E: ${{ needs.e2e.result }}
+        run: |
+          mkdir -p pr-meta
+          echo "$PR_NUMBER" > pr-meta/pr_number
+          echo "$QUALITY" > pr-meta/quality_result
+          echo "$TESTS" > pr-meta/tests_result
+          echo "$E2E" > pr-meta/e2e_result
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Upload PR metadata
+        uses: actions/upload-artifact@v4
         with:
-          python-version: "3.12"
-          cache: pip
+          name: pr-meta
+          path: pr-meta/
+          retention-days: 1
 
-      - name: Install dependencies
-        run: python -m pip install -e .[dev]
+  ci-status:
+    name: CI Gate
+    if: always()
+    needs: [quality, tests, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check workflow results
+        shell: bash
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          TESTS: ${{ needs.tests.result }}
+          E2E: ${{ needs.e2e.result }}
+        run: |
+          echo "Quality: $QUALITY"
+          echo "Tests: $TESTS"
+          echo "E2E: $E2E"
 
-      - name: Run unit tests
-        run: python -m pytest -q tests/unit
+          if [[ "$QUALITY" != "success" ]] || [[ "$TESTS" != "success" ]] || [[ "$E2E" != "success" ]]; then
+            echo "::error::One or more CI jobs failed"
+            exit 1
+          fi

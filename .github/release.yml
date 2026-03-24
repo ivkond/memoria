@@ -1,0 +1,52 @@
+changelog:
+  exclude:
+    authors:
+      - dependabot
+      - dependabot[bot]
+    labels:
+      - chore
+  categories:
+    - title: Security
+      labels:
+        - security
+    - title: Breaking Changes
+      labels:
+        - breaking
+    - title: Features
+      labels:
+        - enhancement
+        - feature
+    - title: Bug Fixes
+      labels:
+        - bug
+    - title: Performance
+      labels:
+        - performance
+    - title: Tests
+      labels:
+        - test
+    - title: Refactoring
+      labels:
+        - refactor
+    - title: CI/CD
+      labels:
+        - ci
+    - title: Dependencies
+      labels:
+        - dependencies
+    - title: Other Changes
+      labels:
+        - "*"
+      exclude:
+        labels:
+          - breaking
+          - bug
+          - chore
+          - ci
+          - dependencies
+          - enhancement
+          - feature
+          - performance
+          - refactor
+          - security
+          - test

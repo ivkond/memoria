@@ -1,0 +1,211 @@
+name: CI Report
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+
+jobs:
+  pr-report:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const runId = context.payload.workflow_run.id;
+            const temp = process.env.RUNNER_TEMP;
+            const downloadDir = path.join(temp, 'dl');
+
+            fs.mkdirSync(downloadDir, { recursive: true });
+
+            const allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId,
+            });
+
+            async function downloadArtifact(name, dest) {
+              const match = allArtifacts.data.artifacts.find((artifact) => artifact.name === name);
+              if (!match) {
+                core.warning(`Artifact "${name}" not found`);
+                return false;
+              }
+
+              const zip = await github.rest.actions.downloadArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: match.id,
+                archive_format: 'zip',
+              });
+
+              fs.mkdirSync(dest, { recursive: true });
+              fs.writeFileSync(path.join(dest, `${name}.zip`), Buffer.from(zip.data));
+              return true;
+            }
+
+            await downloadArtifact('pr-meta', downloadDir);
+            await downloadArtifact('test-reports', downloadDir);
+
+      - name: Extract artifacts
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/dl"
+          for z in *.zip; do
+            [ -f "$z" ] || continue
+            name="${z%.zip}"
+            mkdir -p "$RUNNER_TEMP/artifacts/$name"
+            unzip -o "$z" -d "$RUNNER_TEMP/artifacts/$name"
+          done
+
+      - name: Read PR metadata
+        id: meta
+        shell: bash
+        run: |
+          DIR="$RUNNER_TEMP/artifacts/pr-meta"
+          if [ ! -f "$DIR/pr_number" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::pr_number artifact missing"
+            exit 0
+          fi
+
+          PR_NUM=$(tr -d '[:space:]' < "$DIR/pr_number")
+          if ! [[ "$PR_NUM" =~ ^[0-9]+$ ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::error::Invalid PR number: '$PR_NUM'"
+            exit 0
+          fi
+
+          read_result() {
+            local file_path=$1
+            local value
+            value=$(tr -d '[:space:]' < "$file_path")
+            case "$value" in
+              success|failure|cancelled|skipped) echo "$value" ;;
+              *) echo "unknown" ;;
+            esac
+          }
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
+          echo "quality=$(read_result "$DIR/quality_result")" >> "$GITHUB_OUTPUT"
+          echo "tests=$(read_result "$DIR/tests_result")" >> "$GITHUB_OUTPUT"
+          echo "e2e=$(read_result "$DIR/e2e_result")" >> "$GITHUB_OUTPUT"
+
+      - name: Build report
+        if: steps.meta.outputs.skip != 'true'
+        id: report
+        shell: bash
+        env:
+          QUALITY: ${{ steps.meta.outputs.quality }}
+          TESTS: ${{ steps.meta.outputs.tests }}
+          E2E: ${{ steps.meta.outputs.e2e }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import textwrap
+          import xml.etree.ElementTree as ET
+
+          temp_dir = pathlib.Path(os.environ["RUNNER_TEMP"]) / "artifacts" / "test-reports"
+          junit_path = next(temp_dir.rglob("pytest-unit.xml"), None)
+          coverage_path = next(temp_dir.rglob("coverage.xml"), None)
+
+          def status_icon(value: str) -> str:
+            return {
+              "success": "SUCCESS",
+              "failure": "FAILED",
+              "cancelled": "CANCELLED",
+              "skipped": "SKIPPED",
+            }.get(value, "UNKNOWN")
+
+          tests = failures = errors = skipped = 0
+          duration = "n/a"
+
+          if junit_path and junit_path.exists():
+            root = ET.parse(junit_path).getroot()
+            suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
+            for suite in suites:
+              tests += int(suite.attrib.get("tests", 0))
+              failures += int(suite.attrib.get("failures", 0))
+              errors += int(suite.attrib.get("errors", 0))
+              skipped += int(suite.attrib.get("skipped", 0))
+            total_time = sum(float(suite.attrib.get("time", 0.0)) for suite in suites)
+            duration = f"{total_time:.2f}s"
+
+          coverage_lines = "n/a"
+          coverage_branches = "n/a"
+          if coverage_path and coverage_path.exists():
+            root = ET.parse(coverage_path).getroot()
+            line_rate = float(root.attrib.get("line-rate", 0.0)) * 100
+            branch_rate = float(root.attrib.get("branch-rate", 0.0)) * 100
+            coverage_lines = (
+              f"{line_rate:.1f}% "
+              f"({root.attrib.get('lines-covered', '0')}/{root.attrib.get('lines-valid', '0')})"
+            )
+            coverage_branches = (
+              f"{branch_rate:.1f}% "
+              f"({root.attrib.get('branches-covered', '0')}/{root.attrib.get('branches-valid', '0')})"
+            )
+
+          overall = "All checks passed" if all(
+            value == "success" for value in (
+              os.environ["QUALITY"],
+              os.environ["TESTS"],
+              os.environ["E2E"],
+            )
+          ) else "Some checks failed"
+
+          body = textwrap.dedent(f"""\
+          ## CI Report
+
+          **{overall}**
+
+          | Stage | Status |
+          |-------|--------|
+          | Quality | `{status_icon(os.environ["QUALITY"])}` |
+          | Unit Tests | `{status_icon(os.environ["TESTS"])}` |
+          | E2E | `{status_icon(os.environ["E2E"])}` |
+
+          ### Unit Test Summary
+
+          | Tests | Failures | Errors | Skipped | Duration |
+          |-------|----------|--------|---------|----------|
+          | {tests} | {failures} | {errors} | {skipped} | {duration} |
+
+          ### Coverage
+
+          | Metric | Value |
+          |--------|-------|
+          | Lines | {coverage_lines} |
+          | Branches | {coverage_branches} |
+
+          [View full run]({os.environ["RUN_URL"]})
+          """)
+
+          output_path = os.environ["GITHUB_OUTPUT"]
+          with open(output_path, "a", encoding="utf-8") as handle:
+            handle.write("body<<EOF\n")
+            handle.write(body.strip() + "\n")
+            handle.write("EOF\n")
+          PY
+
+      - name: Comment on PR
+        if: steps.meta.outputs.skip != 'true'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: ci-report
+          number: ${{ steps.meta.outputs.pr_number }}
+          message: ${{ steps.report.outputs.body }}
