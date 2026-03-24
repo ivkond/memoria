@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     mem0_embedder_provider: str = "openai"
     mem0_embedder_model: str = "text-embedding-3-small"
     mem0_embedder_base_url: str = ""
+    # Local OpenAI-compatible endpoints often only require a non-empty placeholder key.
     mem0_api_key: str | None = "dummy"
     mem0_llm_api_key: str | None = None
     mem0_embedder_api_key: str | None = None

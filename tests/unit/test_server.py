@@ -4,18 +4,13 @@ import asyncio
 
 import pytest
 
-from memoria.server import (
-    MEMORY_ID_DESCRIPTION,
-    TOOL_CONTEXT_REQUIRED_MESSAGE,
-    _memory_id_field,
-    _require_tool_user_id,
-)
+import memoria.server as server_module
 
 
 @pytest.mark.asyncio
 async def test_require_tool_user_id_raises_without_context() -> None:
-    with pytest.raises(ValueError, match=TOOL_CONTEXT_REQUIRED_MESSAGE):
-        await _require_tool_user_id(None, "x-user-id")
+    with pytest.raises(ValueError, match=server_module.TOOL_CONTEXT_REQUIRED_MESSAGE):
+        await server_module._require_tool_user_id(None, "x-user-id")
 
 
 @pytest.mark.asyncio
@@ -28,10 +23,10 @@ async def test_require_tool_user_id_delegates_to_auth(monkeypatch: pytest.Monkey
 
     monkeypatch.setattr("memoria.server.require_user_id", fake_require_user_id)
 
-    assert await _require_tool_user_id("ctx", "x-user-id") == "user-1"
+    assert await server_module._require_tool_user_id("ctx", "x-user-id") == "user-1"
 
 
 def test_memory_id_field_uses_shared_description() -> None:
-    field = _memory_id_field()
+    field = server_module._memory_id_field()
 
-    assert field.description == MEMORY_ID_DESCRIPTION
+    assert field.description == server_module.MEMORY_ID_DESCRIPTION

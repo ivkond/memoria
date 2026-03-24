@@ -84,9 +84,8 @@ class Mem0Adapter:
                 ) from exc
             raise
 
-    def _build_config(self) -> dict[str, Any]:
+    def _build_qdrant_config(self) -> dict[str, Any]:
         settings = self._settings
-
         if settings.qdrant_url:
             qdrant_config: dict[str, Any] = {
                 "url": settings.qdrant_url,
@@ -105,6 +104,10 @@ class Mem0Adapter:
                 "on_disk": settings.qdrant_on_disk,
             }
 
+        return qdrant_config
+
+    def _build_llm_config(self) -> dict[str, Any]:
+        settings = self._settings
         llm_config: dict[str, Any] = {
             "model": settings.mem0_llm_model,
             "api_key": settings.mem0_llm_api_key or settings.mem0_api_key,
@@ -116,6 +119,10 @@ class Mem0Adapter:
             else:
                 llm_config["openai_base_url"] = llm_base_url
 
+        return llm_config
+
+    def _build_embedder_config(self) -> dict[str, Any]:
+        settings = self._settings
         embedder_config: dict[str, Any] = {
             "model": settings.mem0_embedder_model,
             "api_key": settings.mem0_embedder_api_key or settings.mem0_api_key,
@@ -123,43 +130,59 @@ class Mem0Adapter:
         embedder_base_url = settings.mem0_embedder_base_url.strip()
         if embedder_base_url:
             embedder_base_url_key = EMBEDDER_BASE_URL_KEYS.get(settings.mem0_embedder_provider)
-            if embedder_base_url_key:
-                embedder_config[embedder_base_url_key] = embedder_base_url
+            if not embedder_base_url_key:
+                raise ValueError(
+                    "Unsupported embedder provider for base URL override: "
+                    f"{settings.mem0_embedder_provider}."
+                )
+            embedder_config[embedder_base_url_key] = embedder_base_url
+
+        return embedder_config
+
+    def _build_graph_store_config(self) -> dict[str, Any] | None:
+        settings = self._settings
+        if not settings.mem0_enable_graph:
+            return None
+
+        if not settings.mem0_graph_url or not settings.mem0_graph_username or not settings.mem0_graph_password:
+            raise ValueError(
+                "Graph memory is enabled, but MemGraph credentials are incomplete. "
+                "Set MEMORIA_MEM0_GRAPH_URL, MEMORIA_MEM0_GRAPH_USERNAME, "
+                "and MEMORIA_MEM0_GRAPH_PASSWORD."
+            )
+
+        return {
+            "provider": settings.mem0_graph_provider,
+            "config": {
+                "url": settings.mem0_graph_url,
+                "username": settings.mem0_graph_username,
+                "password": settings.mem0_graph_password,
+            },
+        }
+
+    def _build_config(self) -> dict[str, Any]:
+        settings = self._settings
 
         config: dict[str, Any] = {
             "version": settings.mem0_version,
             "history_db_path": settings.mem0_history_db_path,
             "vector_store": {
                 "provider": "qdrant",
-                "config": qdrant_config,
+                "config": self._build_qdrant_config(),
             },
             "llm": {
                 "provider": settings.mem0_llm_provider,
-                "config": llm_config,
+                "config": self._build_llm_config(),
             },
             "embedder": {
                 "provider": settings.mem0_embedder_provider,
-                "config": embedder_config,
+                "config": self._build_embedder_config(),
             },
         }
 
-        if settings.mem0_enable_graph:
-            if not settings.mem0_graph_url or not settings.mem0_graph_username or not settings.mem0_graph_password:
-                raise ValueError(
-                    "Graph memory is enabled, but MemGraph credentials are incomplete. "
-                    "Set MEMORIA_MEM0_GRAPH_URL, MEMORIA_MEM0_GRAPH_USERNAME, "
-                    "and MEMORIA_MEM0_GRAPH_PASSWORD."
-                )
-
-            graph_config: dict[str, Any] = {
-                "provider": settings.mem0_graph_provider,
-                "config": {
-                    "url": settings.mem0_graph_url,
-                    "username": settings.mem0_graph_username,
-                    "password": settings.mem0_graph_password,
-                },
-            }
-            config["graph_store"] = graph_config
+        graph_store_config = self._build_graph_store_config()
+        if graph_store_config is not None:
+            config["graph_store"] = graph_store_config
 
         return config
 

@@ -98,6 +98,17 @@ def test_build_config_uses_provider_specific_embedder_base_url_key() -> None:
     assert "openai_base_url" not in config["embedder"]["config"]
 
 
+def test_build_config_rejects_unsupported_embedder_base_url_provider() -> None:
+    settings = Settings(
+        mem0_embedder_provider="huggingface",
+        mem0_embedder_base_url="http://localhost:9999",
+    )
+    adapter = Mem0Adapter(settings)
+
+    with pytest.raises(ValueError, match="Unsupported embedder provider"):
+        adapter._build_config()
+
+
 def test_add_memory_wraps_api_connection_error() -> None:
     class APIConnectionError(Exception):
         pass
