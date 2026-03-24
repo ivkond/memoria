@@ -26,10 +26,10 @@ class Settings(BaseSettings):
 
     mem0_llm_provider: str = "vllm"
     mem0_llm_model: str = "gpt-4o-mini"
-    mem0_llm_base_url: str = "http://host.docker.internal:8000/v1"
+    mem0_llm_base_url: str = ""
     mem0_embedder_provider: str = "openai"
     mem0_embedder_model: str = "text-embedding-3-small"
-    mem0_embedder_base_url: str = "http://host.docker.internal:8000/v1"
+    mem0_embedder_base_url: str = ""
     mem0_api_key: str | None = "dummy"
     mem0_llm_api_key: str | None = None
     mem0_embedder_api_key: str | None = None

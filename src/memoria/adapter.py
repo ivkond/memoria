@@ -104,16 +104,20 @@ class Mem0Adapter:
             "model": settings.mem0_llm_model,
             "api_key": settings.mem0_llm_api_key or settings.mem0_api_key,
         }
-        if settings.mem0_llm_provider == "vllm":
-            llm_config["vllm_base_url"] = settings.mem0_llm_base_url
-        else:
-            llm_config["openai_base_url"] = settings.mem0_llm_base_url
+        llm_base_url = settings.mem0_llm_base_url.strip()
+        if llm_base_url:
+            if settings.mem0_llm_provider == "vllm":
+                llm_config["vllm_base_url"] = llm_base_url
+            else:
+                llm_config["openai_base_url"] = llm_base_url
 
         embedder_config: dict[str, Any] = {
             "model": settings.mem0_embedder_model,
             "api_key": settings.mem0_embedder_api_key or settings.mem0_api_key,
-            "openai_base_url": settings.mem0_embedder_base_url,
         }
+        embedder_base_url = settings.mem0_embedder_base_url.strip()
+        if embedder_base_url:
+            embedder_config["openai_base_url"] = embedder_base_url
 
         config: dict[str, Any] = {
             "version": settings.mem0_version,

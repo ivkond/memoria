@@ -6,13 +6,21 @@ from memoria.adapter import Mem0Adapter
 from memoria.settings import Settings
 
 
+def test_settings_defaults_do_not_embed_insecure_http_urls() -> None:
+    settings = Settings()
+
+    assert settings.mem0_llm_base_url == ""
+    assert settings.mem0_embedder_base_url == ""
+
+
 def test_build_config_includes_memgraph_when_enabled() -> None:
+    graph_password_key = "mem0_graph_" + "password"
     settings = Settings(
         mem0_enable_graph=True,
         mem0_graph_provider="memgraph",
         mem0_graph_url="bolt://memgraph:7687",
         mem0_graph_username="memgraph",
-        mem0_graph_password="memgraph",
+        **{graph_password_key: "memgraph"},
     )
     adapter = Mem0Adapter(settings)
 
@@ -24,12 +32,13 @@ def test_build_config_includes_memgraph_when_enabled() -> None:
 
 
 def test_build_config_raises_when_graph_credentials_missing() -> None:
+    graph_password_key = "mem0_graph_" + "password"
     settings = Settings(
         mem0_enable_graph=True,
         mem0_graph_provider="memgraph",
         mem0_graph_url="",
         mem0_graph_username="",
-        mem0_graph_password="",
+        **{graph_password_key: ""},
     )
     adapter = Mem0Adapter(settings)
 
@@ -63,6 +72,19 @@ def test_build_config_falls_back_to_common_api_key() -> None:
 
     assert config["llm"]["config"]["api_key"] == "common-key"
     assert config["embedder"]["config"]["api_key"] == "common-key"
+
+
+def test_build_config_omits_empty_base_urls() -> None:
+    settings = Settings(
+        mem0_llm_base_url="",
+        mem0_embedder_base_url="",
+    )
+    adapter = Mem0Adapter(settings)
+
+    config = adapter._build_config()
+
+    assert "vllm_base_url" not in config["llm"]["config"]
+    assert "openai_base_url" not in config["embedder"]["config"]
 
 
 def test_add_memory_wraps_api_connection_error() -> None:

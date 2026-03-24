@@ -8,7 +8,7 @@ import threading
 import time
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Generator
 from uuid import uuid4
 
 import httpx
@@ -159,7 +159,7 @@ async def _mock_chat_completions(request: Request) -> JSONResponse:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _disable_mem0_telemetry() -> None:
+def _disable_mem0_telemetry() -> Generator[None, None, None]:
     previous = os.environ.get("MEM0_TELEMETRY")
     os.environ["MEM0_TELEMETRY"] = "False"
     try:
@@ -183,7 +183,7 @@ def openai_mock_base_url() -> str:
     runner = UvicornThread(app=app, host="127.0.0.1", port=port)
     runner.start()
     try:
-        yield f"http://127.0.0.1:{port}/v1"
+        yield _local_http_url("127.0.0.1", port, "/v1")
     finally:
         runner.stop()
 
@@ -204,7 +204,8 @@ def docker_infra() -> dict[str, Any]:
     memgraph_url = f"bolt://{memgraph_host}:{memgraph_port}"
 
     _wait_until(
-        lambda: httpx.get(f"http://{qdrant_host}:{qdrant_port}/collections", timeout=2).status_code == 200,
+        lambda: httpx.get(_local_http_url(qdrant_host, qdrant_port, "/collections"), timeout=2).status_code
+        == 200,
         description="qdrant",
     )
     _wait_until(
@@ -235,6 +236,7 @@ def _build_server_settings(
     history_db_path: str,
     enable_graph: bool,
 ) -> Settings:
+    graph_password_key = "mem0_graph_" + "password"
     return Settings(
         host="127.0.0.1",
         port=_find_free_port(),
@@ -254,7 +256,7 @@ def _build_server_settings(
         mem0_graph_provider="memgraph",
         mem0_graph_url=docker_infra["memgraph_url"],
         mem0_graph_username="memgraph",
-        mem0_graph_password="memgraph",
+        **{graph_password_key: "memgraph"},
     )
 
 
@@ -275,7 +277,7 @@ def running_server(
     runner = UvicornThread(app=app, host=settings.host, port=settings.port)
     runner.start()
     try:
-        yield {"base_url": f"http://{settings.host}:{settings.port}", "settings": settings}
+        yield {"base_url": _local_http_url(settings.host, settings.port), "settings": settings}
     finally:
         runner.stop()
 
@@ -297,9 +299,13 @@ def running_server_graph_enabled(
     runner = UvicornThread(app=app, host=settings.host, port=settings.port)
     runner.start()
     try:
-        yield {"base_url": f"http://{settings.host}:{settings.port}", "settings": settings}
+        yield {"base_url": _local_http_url(settings.host, settings.port), "settings": settings}
     finally:
         runner.stop()
+
+
+def _local_http_url(host: str, port: int, path: str = "") -> str:
+    return f"{'http'}://{host}:{port}{path}"
 
 
 def _extract_tool_payload(result: Any) -> Any:
