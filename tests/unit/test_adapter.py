@@ -14,13 +14,12 @@ def test_settings_defaults_do_not_embed_insecure_http_urls() -> None:
 
 
 def test_build_config_includes_memgraph_when_enabled() -> None:
-    graph_password_key = "mem0_graph_" + "password"
     settings = Settings(
         mem0_enable_graph=True,
         mem0_graph_provider="memgraph",
         mem0_graph_url="bolt://memgraph:7687",
         mem0_graph_username="memgraph",
-        **{graph_password_key: "memgraph"},
+        mem0_graph_password="memgraph",  # NOSONAR: test credential for local memgraph config
     )
     adapter = Mem0Adapter(settings)
 
@@ -32,13 +31,12 @@ def test_build_config_includes_memgraph_when_enabled() -> None:
 
 
 def test_build_config_raises_when_graph_credentials_missing() -> None:
-    graph_password_key = "mem0_graph_" + "password"
     settings = Settings(
         mem0_enable_graph=True,
         mem0_graph_provider="memgraph",
         mem0_graph_url="",
         mem0_graph_username="",
-        **{graph_password_key: ""},
+        mem0_graph_password="",  # NOSONAR: empty value exercises validation path
     )
     adapter = Mem0Adapter(settings)
 

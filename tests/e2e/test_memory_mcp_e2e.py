@@ -8,7 +8,7 @@ import threading
 import time
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Callable, Generator
+from typing import Any, Callable, Generator, Literal
 from uuid import uuid4
 
 import httpx
@@ -236,7 +236,6 @@ def _build_server_settings(
     history_db_path: str,
     enable_graph: bool,
 ) -> Settings:
-    graph_password_key = "mem0_graph_" + "password"
     return Settings(
         host="127.0.0.1",
         port=_find_free_port(),
@@ -256,7 +255,7 @@ def _build_server_settings(
         mem0_graph_provider="memgraph",
         mem0_graph_url=docker_infra["memgraph_url"],
         mem0_graph_username="memgraph",
-        **{graph_password_key: "memgraph"},
+        mem0_graph_password="memgraph",  # NOSONAR: isolated E2E container credential
     )
 
 
@@ -304,8 +303,14 @@ def running_server_graph_enabled(
         runner.stop()
 
 
-def _local_http_url(host: str, port: int, path: str = "") -> str:
-    return f"{'http'}://{host}:{port}{path}"
+def _local_http_url(
+    host: str,
+    port: int,
+    path: str = "",
+    *,
+    scheme: Literal["http", "https"] = "http",
+) -> str:
+    return f"{scheme}://{host}:{port}{path}"
 
 
 def _extract_tool_payload(result: Any) -> Any:

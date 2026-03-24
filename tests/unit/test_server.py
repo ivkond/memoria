@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from memoria.server import (
@@ -19,6 +21,7 @@ async def test_require_tool_user_id_raises_without_context() -> None:
 @pytest.mark.asyncio
 async def test_require_tool_user_id_delegates_to_auth(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_require_user_id(ctx: object, header_name: str) -> str:
+        await asyncio.sleep(0)
         assert ctx == "ctx"
         assert header_name == "x-user-id"
         return "user-1"
