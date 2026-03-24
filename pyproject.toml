@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memory-mcp-server"
+version = "0.1.0"
+description = "Standalone FastMCP server with mem0-backed memory for internal agents."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastmcp>=2.14.0",
+  "mem0ai>=1.0.7",
+  "langchain-memgraph>=0.1.12",
+  "rank-bm25>=0.2.2",
+  "pydantic-settings>=2.0.0",
+  "qdrant-client>=1.17.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.0.0",
+  "pytest-asyncio>=1.0.0",
+  "testcontainers>=4.14.0",
+]
+
+[project.scripts]
+memory-mcp-server = "memory_mcp_server.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "e2e: end-to-end integration tests that require Docker/Testcontainers",
+]
