@@ -19,7 +19,7 @@ def test_build_config_includes_memgraph_when_enabled() -> None:
         mem0_graph_provider="memgraph",
         mem0_graph_url="bolt://memgraph:7687",
         mem0_graph_username="memgraph",
-        mem0_graph_password="memgraph",  # NOSONAR: test credential for local memgraph config
+        mem0_graph_password="memgraph",
     )
     adapter = Mem0Adapter(settings)
 
@@ -36,7 +36,7 @@ def test_build_config_raises_when_graph_credentials_missing() -> None:
         mem0_graph_provider="memgraph",
         mem0_graph_url="",
         mem0_graph_username="",
-        mem0_graph_password="",  # NOSONAR: empty value exercises validation path
+        mem0_graph_password="",
     )
     adapter = Mem0Adapter(settings)
 
@@ -82,6 +82,19 @@ def test_build_config_omits_empty_base_urls() -> None:
     config = adapter._build_config()
 
     assert "vllm_base_url" not in config["llm"]["config"]
+    assert "openai_base_url" not in config["embedder"]["config"]
+
+
+def test_build_config_uses_provider_specific_embedder_base_url_key() -> None:
+    settings = Settings(
+        mem0_embedder_provider="ollama",
+        mem0_embedder_base_url="http://localhost:11434",
+    )
+    adapter = Mem0Adapter(settings)
+
+    config = adapter._build_config()
+
+    assert config["embedder"]["config"]["ollama_base_url"] == "http://localhost:11434"
     assert "openai_base_url" not in config["embedder"]["config"]
 
 

@@ -255,7 +255,7 @@ def _build_server_settings(
         mem0_graph_provider="memgraph",
         mem0_graph_url=docker_infra["memgraph_url"],
         mem0_graph_username="memgraph",
-        mem0_graph_password="memgraph",  # NOSONAR: isolated E2E container credential
+        mem0_graph_password="memgraph",
     )
 
 

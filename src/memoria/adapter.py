@@ -8,6 +8,11 @@ from memoria.schemas import DeleteEntitiesResponse
 from memoria.settings import Settings
 
 T = TypeVar("T")
+EMBEDDER_BASE_URL_KEYS = {
+    "openai": "openai_base_url",
+    "ollama": "ollama_base_url",
+    "lmstudio": "lmstudio_base_url",
+}
 
 
 class MemoryAdapter(Protocol):
@@ -117,7 +122,9 @@ class Mem0Adapter:
         }
         embedder_base_url = settings.mem0_embedder_base_url.strip()
         if embedder_base_url:
-            embedder_config["openai_base_url"] = embedder_base_url
+            embedder_base_url_key = EMBEDDER_BASE_URL_KEYS.get(settings.mem0_embedder_provider)
+            if embedder_base_url_key:
+                embedder_config[embedder_base_url_key] = embedder_base_url
 
         config: dict[str, Any] = {
             "version": settings.mem0_version,
