@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from memory_mcp_server.schemas import DeleteEntitiesResponse
 from memory_mcp_server.service import MemoryService
 
@@ -9,6 +11,7 @@ from memory_mcp_server.service import MemoryService
 class FakeAdapter:
     def __init__(self):
         self.calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
+        self.memories: dict[str, dict[str, Any]] = {}
 
     def add_memory(self, messages, **kwargs):
         self.calls.append(("add_memory", (messages,), kwargs))
@@ -20,7 +23,7 @@ class FakeAdapter:
 
     def get_memory(self, memory_id):
         self.calls.append(("get_memory", (memory_id,), {}))
-        return {"id": memory_id}
+        return self.memories.get(memory_id)
 
     def get_memories(self, **kwargs):
         self.calls.append(("get_memories", (), kwargs))
@@ -79,3 +82,34 @@ def test_delete_entities_returns_pydantic_response() -> None:
     assert response.user_id == "employee-7"
     assert response.result["deleted"] is True
 
+
+def test_get_memory_returns_none_when_owned_by_other_user() -> None:
+    adapter = FakeAdapter()
+    adapter.memories["mem-1"] = {"id": "mem-1", "user_id": "U1", "memory": "tea"}
+    service = MemoryService(adapter)
+
+    response = service.get_memory(user_id="U2", memory_id="mem-1")
+
+    assert response is None
+
+
+def test_update_memory_rejects_cross_tenant_access() -> None:
+    adapter = FakeAdapter()
+    adapter.memories["mem-1"] = {"id": "mem-1", "user_id": "U1", "memory": "tea"}
+    service = MemoryService(adapter)
+
+    with pytest.raises(ValueError, match="not found"):
+        service.update_memory(user_id="U2", memory_id="mem-1", data="coffee")
+
+    assert ("update_memory", ("mem-1", "coffee"), {}) not in adapter.calls
+
+
+def test_delete_memory_rejects_cross_tenant_access() -> None:
+    adapter = FakeAdapter()
+    adapter.memories["mem-1"] = {"id": "mem-1", "user_id": "U1", "memory": "tea"}
+    service = MemoryService(adapter)
+
+    with pytest.raises(ValueError, match="not found"):
+        service.delete_memory(user_id="U2", memory_id="mem-1")
+
+    assert ("delete_memory", ("mem-1",), {}) not in adapter.calls

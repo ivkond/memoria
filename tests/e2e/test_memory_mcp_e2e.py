@@ -302,7 +302,7 @@ def running_server_graph_enabled(
         runner.stop()
 
 
-def _extract_tool_payload(result: Any) -> dict[str, Any]:
+def _extract_tool_payload(result: Any) -> Any:
     if result.structured_content is not None:
         return result.structured_content
     if result.content and hasattr(result.content[0], "text"):
@@ -340,14 +340,33 @@ async def test_e2e_memory_crud_and_user_isolation(running_server: dict[str, Any]
         search_b = await _call_tool(client_b, "search_memories", {"query": "tea", "limit": 50})
         assert all(item["id"] != memory_id for item in search_b["results"])
 
+        get_one_other_user = await _call_tool(client_b, "get_memory", {"memory_id": memory_id})
+        assert get_one_other_user in (None, {"result": None})
+
         get_one = await _call_tool(client_a, "get_memory", {"memory_id": memory_id})
         assert memory_id in json.dumps(get_one)
+
+        cross_tenant_update = await client_b.call_tool(
+            "update_memory",
+            {"memory_id": memory_id, "data": "black tea"},
+            raise_on_error=False,
+        )
+        assert cross_tenant_update.is_error is True
+        assert "not found" in json.dumps(_extract_tool_payload(cross_tenant_update)).lower()
 
         update = await _call_tool(client_a, "update_memory", {"memory_id": memory_id, "data": "green tea"})
         assert "updated" in json.dumps(update).lower()
 
         updated_memory = await _call_tool(client_a, "get_memory", {"memory_id": memory_id})
         assert "green tea" in json.dumps(updated_memory).lower()
+
+        cross_tenant_delete = await client_b.call_tool(
+            "delete_memory",
+            {"memory_id": memory_id},
+            raise_on_error=False,
+        )
+        assert cross_tenant_delete.is_error is True
+        assert "not found" in json.dumps(_extract_tool_payload(cross_tenant_delete)).lower()
 
         delete = await _call_tool(client_a, "delete_memory", {"memory_id": memory_id})
         assert "deleted" in json.dumps(delete).lower()

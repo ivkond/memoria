@@ -4,7 +4,7 @@ Unofficial, community-driven MCP server for mem0 OSS.
 
 If you like mem0 but need it in MCP clients today, Memoria closes that gap:
 - Streamable HTTP MCP endpoint
-- User-scoped memory out of the box
+- Per-user memory scoping for trusted internal deployments
 - Drop-in Docker setup with Qdrant
 - Optional graph memory via Memgraph
 
@@ -13,14 +13,16 @@ If you like mem0 but need it in MCP clients today, Memoria closes that gap:
 ## What You Get
 
 - MCP tools for storing, searching, updating, and deleting memory
-- Required `x-user-id` header for tenant/user isolation
-- Health endpoint with dependency checks
+- Required `x-user-id` header for per-user scoping behind a trusted auth boundary
+- Ownership checks for ID-based read/update/delete operations
+- Health endpoint with Qdrant, Memgraph, LLM, and embedder dependency checks
 - mem0-backed memory with pluggable LLM/embedder providers
 - Optional graph relations support when graph mode is enabled
 
 ## Quickstart (Docker, Recommended)
 
 ```bash
+# Copy .env.example to .env and put rotated provider keys there first
 docker compose up -d --build
 ```
 
@@ -57,6 +59,12 @@ Defaults:
 ```
 
 Without `x-user-id`, requests are rejected.
+
+## Security Boundary
+
+`x-user-id` is an identity input, not authentication.
+
+Use Memoria only behind a trusted auth proxy or gateway that authenticates the caller and injects `x-user-id`. Direct external exposure is not a supported security model. Inside that trusted perimeter, the server enforces ownership checks for all `memory_id`-based operations so one user cannot read, update, or delete another user's memory by ID alone.
 
 ## MCP Tools
 

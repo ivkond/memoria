@@ -28,7 +28,8 @@ def create_server(
         "memory-mcp-server",
         instructions=(
             "Standalone MCP server for mem0-backed user memory. "
-            "Every tool call requires x-user-id header and scopes all data to that user."
+            "Every tool call requires x-user-id from a trusted upstream and scopes data to that user. "
+            "The header is not authentication by itself."
         ),
         middleware=[UserHeaderMiddleware(app_settings.user_header_name)],
     )
@@ -110,8 +111,8 @@ def create_server(
     ) -> dict[str, Any] | None:
         if ctx is None:
             raise ValueError("Tool context is required.")
-        require_user_id(ctx, app_settings.user_header_name)
-        return service.get_memory(memory_id)
+        user_id = require_user_id(ctx, app_settings.user_header_name)
+        return service.get_memory(user_id=user_id, memory_id=memory_id)
 
     @mcp.tool(description="List memories for current user.")
     def get_memories(
@@ -132,8 +133,8 @@ def create_server(
     ) -> dict[str, Any]:
         if ctx is None:
             raise ValueError("Tool context is required.")
-        require_user_id(ctx, app_settings.user_header_name)
-        return service.update_memory(memory_id=memory_id, data=data)
+        user_id = require_user_id(ctx, app_settings.user_header_name)
+        return service.update_memory(user_id=user_id, memory_id=memory_id, data=data)
 
     @mcp.tool(description="Delete memory by ID.")
     def delete_memory(
@@ -142,8 +143,8 @@ def create_server(
     ) -> dict[str, Any]:
         if ctx is None:
             raise ValueError("Tool context is required.")
-        require_user_id(ctx, app_settings.user_header_name)
-        return service.delete_memory(memory_id)
+        user_id = require_user_id(ctx, app_settings.user_header_name)
+        return service.delete_memory(user_id=user_id, memory_id=memory_id)
 
     @mcp.tool(description="Delete all memories for current user.")
     def delete_all_memories(ctx: Context | None = None) -> dict[str, Any]:
