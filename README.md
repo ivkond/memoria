@@ -1,113 +1,46 @@
-# memory-mcp-server
+# Memoria
 
-Standalone MCP server built with `FastMCP` and `mem0` for on-prem memory.
+Unofficial, community-driven MCP server for mem0 OSS.
 
-## What it does
+If you like mem0 but need it in MCP clients today, Memoria closes that gap:
+- Streamable HTTP MCP endpoint
+- User-scoped memory out of the box
+- Drop-in Docker setup with Qdrant
+- Optional graph memory via Memgraph
 
-- Exposes memory tools over MCP Streamable HTTP.
-- Requires `x-user-id` header on every tool call.
-- Scopes all operations to that user.
-- Uses `Qdrant` for vector memory and checks `Qdrant` (+ `MemGraph` when enabled) in `/health`.
-- Supports optional MemGraph-based graph memory when enabled.
+> Why this project exists: there is no official MCP server in mem0 OSS that you can run as a standalone service in your stack. Memoria gives you that bridge now.
 
-## Tools
+## What You Get
 
-- `add_memory`
-- `search_memories`
-- `get_memory`
-- `get_memories`
-- `update_memory`
-- `delete_memory`
-- `delete_all_memories`
-- `list_entities`
-- `delete_entities`
+- MCP tools for storing, searching, updating, and deleting memory
+- Required `x-user-id` header for tenant/user isolation
+- Health endpoint with dependency checks
+- mem0-backed memory with pluggable LLM/embedder providers
+- Optional graph relations support when graph mode is enabled
 
-Notes:
-- In mem0 OSS SDK, dedicated entity APIs are not exposed as separate methods.
-- `list_entities` returns graph relations from `get_all` when graph mode is enabled.
-- `delete_entities` is mapped to `delete_all_memories` for current `x-user-id`.
-- MemGraph runtime requires `langchain-memgraph` and `rank-bm25` (included in this project).
+## Quickstart (Docker, Recommended)
 
-## Run locally
+```bash
+docker compose up -d --build
+```
+
+Available endpoints:
+- MCP: `http://localhost:8080/mcp`
+- Health: `http://localhost:8080/health`
+- Memgraph Lab UI: `http://localhost:3000`
+
+## Quickstart (Local Python)
 
 ```bash
 python -m pip install -e .[dev]
 python -m memory_mcp_server
 ```
 
-Server defaults:
-- MCP endpoint: `http://0.0.0.0:8080/mcp`
+Defaults:
+- MCP: `http://0.0.0.0:8080/mcp`
 - Health: `http://0.0.0.0:8080/health`
 
-## Docker compose
-
-```bash
-docker compose up -d --build
-```
-
-If MCP runs in Docker and `vLLM` runs on host machine, keep base URLs like
-`http://host.docker.internal:8000/v1`. For Linux Docker Engine this project
-already adds `host-gateway` mapping in compose.
-
-## Run tests
-
-Unit tests:
-
-```bash
-python -m pytest -q
-```
-
-E2E integration tests (Docker + Testcontainers required):
-
-```bash
-$env:RUN_E2E='1'  # PowerShell
-python -m pytest -q tests/e2e
-```
-
-## Key environment variables
-
-- `MEMORY_MCP_HOST`
-- `MEMORY_MCP_PORT`
-- `MEMORY_MCP_MCP_PATH`
-- `MEMORY_MCP_USER_HEADER_NAME`
-- `MEMORY_MCP_QDRANT_HOST`
-- `MEMORY_MCP_QDRANT_PORT`
-- `MEMORY_MCP_MEM0_LLM_PROVIDER` (`vllm` or `openai`)
-- `MEMORY_MCP_MEM0_LLM_BASE_URL`
-- `MEMORY_MCP_MEM0_LLM_MODEL`
-- `MEMORY_MCP_MEM0_EMBEDDER_PROVIDER`
-- `MEMORY_MCP_MEM0_EMBEDDER_BASE_URL`
-- `MEMORY_MCP_MEM0_EMBEDDER_MODEL`
-- `MEMORY_MCP_MEM0_LLM_API_KEY` (optional, overrides common key for LLM)
-- `MEMORY_MCP_MEM0_EMBEDDER_API_KEY` (optional, overrides common key for embedder)
-- `MEMORY_MCP_MEM0_API_KEY`
-- `MEMORY_MCP_MEM0_ENABLE_GRAPH` (`true`/`false`)
-- `MEMORY_MCP_MEM0_GRAPH_PROVIDER` (`memgraph`)
-- `MEMORY_MCP_MEM0_GRAPH_URL` (example: `bolt://memgraph:7687`)
-- `MEMORY_MCP_MEM0_GRAPH_USERNAME`
-- `MEMORY_MCP_MEM0_GRAPH_PASSWORD`
-
-API key behavior:
-- If `MEMORY_MCP_MEM0_LLM_API_KEY` / `MEMORY_MCP_MEM0_EMBEDDER_API_KEY` are set, they are used respectively.
-- Otherwise server falls back to `MEMORY_MCP_MEM0_API_KEY`.
-
-## Enable MemGraph
-
-Set:
-
-- `MEMORY_MCP_MEM0_ENABLE_GRAPH=true`
-- `MEMORY_MCP_MEM0_GRAPH_PROVIDER=memgraph`
-- `MEMORY_MCP_MEM0_GRAPH_URL=bolt://memgraph:7687`
-- `MEMORY_MCP_MEM0_GRAPH_USERNAME=memgraph`
-- `MEMORY_MCP_MEM0_GRAPH_PASSWORD=memgraph`
-
-Then restart:
-
-```bash
-docker compose up -d --build
-```
-
-## Example MCP client config
+## Connect from an MCP Client
 
 ```json
 {
@@ -122,3 +55,100 @@ docker compose up -d --build
   }
 }
 ```
+
+Without `x-user-id`, requests are rejected.
+
+## MCP Tools
+
+- `add_memory`
+- `search_memories`
+- `get_memory`
+- `get_memories`
+- `update_memory`
+- `delete_memory`
+- `delete_all_memories`
+- `list_entities`
+- `delete_entities`
+
+Notes:
+- In mem0 OSS SDK, dedicated entity APIs are not exposed as separate methods.
+- `list_entities` reads graph relations returned by mem0 when graph store is enabled.
+- `delete_entities` is mapped to `delete_all_memories` in this server.
+
+## Architecture
+
+Memoria is intentionally simple:
+- FastMCP server (`streamable-http`)
+- mem0 as memory engine
+- Qdrant as vector store
+- Optional Memgraph for graph memory
+
+This keeps operations transparent and makes it easy to self-host.
+
+## Configuration
+
+Core env vars:
+- `MEMORY_MCP_HOST`
+- `MEMORY_MCP_PORT`
+- `MEMORY_MCP_MCP_PATH`
+- `MEMORY_MCP_USER_HEADER_NAME`
+- `MEMORY_MCP_QDRANT_HOST`
+- `MEMORY_MCP_QDRANT_PORT`
+- `MEMORY_MCP_QDRANT_COLLECTION_NAME`
+
+mem0/LLM/embedder:
+- `MEMORY_MCP_MEM0_LLM_PROVIDER` (`vllm` or `openai`)
+- `MEMORY_MCP_MEM0_LLM_BASE_URL`
+- `MEMORY_MCP_MEM0_LLM_MODEL`
+- `MEMORY_MCP_MEM0_EMBEDDER_PROVIDER`
+- `MEMORY_MCP_MEM0_EMBEDDER_BASE_URL`
+- `MEMORY_MCP_MEM0_EMBEDDER_MODEL`
+- `MEMORY_MCP_MEM0_API_KEY`
+- `MEMORY_MCP_MEM0_LLM_API_KEY` (optional override)
+- `MEMORY_MCP_MEM0_EMBEDDER_API_KEY` (optional override)
+
+Graph mode:
+- `MEMORY_MCP_MEM0_ENABLE_GRAPH` (`true`/`false`)
+- `MEMORY_MCP_MEM0_GRAPH_PROVIDER` (`memgraph`)
+- `MEMORY_MCP_MEM0_GRAPH_URL` (example: `bolt://memgraph:7687`)
+- `MEMORY_MCP_MEM0_GRAPH_USERNAME`
+- `MEMORY_MCP_MEM0_GRAPH_PASSWORD`
+
+## Tests
+
+Unit tests:
+
+```bash
+python -m pytest -q
+```
+
+E2E tests (Docker + Testcontainers):
+
+```bash
+# PowerShell
+$env:RUN_E2E='1'
+python -m pytest -q tests/e2e
+```
+
+```bash
+# Bash
+RUN_E2E=1 python -m pytest -q tests/e2e
+```
+
+## Positioning and Scope
+
+- This project is an unofficial MCP bridge maintained by the community.
+- It is focused on practical integration and fast self-hosting.
+- It does not claim affiliation with mem0.
+
+## TODO
+
+- [ ] Rework authentication to OAuth-based auth flow.
+- [ ] Add role/scope-based authorization for MCP tools (read/write/admin separation).
+- [ ] Provide production deployment presets (Docker hardening + Kubernetes Helm chart).
+- [ ] Add observability package (structured logs, Prometheus metrics, tracing).
+- [ ] Expand integration examples for major MCP clients and providers.
+
+## License
+
+MIT
