@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol, TypeVar
 
 from mem0 import Memory
 
 from memory_mcp_server.schemas import DeleteEntitiesResponse
 from memory_mcp_server.settings import Settings
+
+T = TypeVar("T")
 
 
 class MemoryAdapter(Protocol):
@@ -63,6 +65,20 @@ class Mem0Adapter:
             self._memory = Memory.from_config(self._build_config())
         return self._memory
 
+    def _run(self, operation: Callable[[], T]) -> T:
+        try:
+            return operation()
+        except Exception as exc:  # noqa: BLE001
+            if exc.__class__.__name__ == "APIConnectionError":
+                raise RuntimeError(
+                    "Cannot reach configured LLM/embedder endpoint for mem0. "
+                    f"Check MEMORY_MCP_MEM0_LLM_BASE_URL={self._settings.mem0_llm_base_url} "
+                    f"and MEMORY_MCP_MEM0_EMBEDDER_BASE_URL={self._settings.mem0_embedder_base_url}. "
+                    "If running in Docker on Linux and using host service, add "
+                    "`extra_hosts: [\"host.docker.internal:host-gateway\"]`."
+                ) from exc
+            raise
+
     def _build_config(self) -> dict[str, Any]:
         settings = self._settings
 
@@ -86,7 +102,7 @@ class Mem0Adapter:
 
         llm_config: dict[str, Any] = {
             "model": settings.mem0_llm_model,
-            "api_key": settings.mem0_api_key,
+            "api_key": settings.mem0_llm_api_key or settings.mem0_api_key,
         }
         if settings.mem0_llm_provider == "vllm":
             llm_config["vllm_base_url"] = settings.mem0_llm_base_url
@@ -95,7 +111,7 @@ class Mem0Adapter:
 
         embedder_config: dict[str, Any] = {
             "model": settings.mem0_embedder_model,
-            "api_key": settings.mem0_api_key,
+            "api_key": settings.mem0_embedder_api_key or settings.mem0_api_key,
             "openai_base_url": settings.mem0_embedder_base_url,
         }
 
@@ -146,13 +162,15 @@ class Mem0Adapter:
         memory_type: str | None = None,
         prompt: str | None = None,
     ) -> dict[str, Any]:
-        return self.memory.add(
-            messages,
-            user_id=user_id,
-            metadata=metadata,
-            infer=infer,
-            memory_type=memory_type,
-            prompt=prompt,
+        return self._run(
+            lambda: self.memory.add(
+                messages,
+                user_id=user_id,
+                metadata=metadata,
+                infer=infer,
+                memory_type=memory_type,
+                prompt=prompt,
+            )
         )
 
     def search_memories(
@@ -165,17 +183,19 @@ class Mem0Adapter:
         threshold: float | None = None,
         rerank: bool = True,
     ) -> dict[str, Any]:
-        return self.memory.search(
-            query=query,
-            user_id=user_id,
-            limit=limit,
-            filters=filters,
-            threshold=threshold,
-            rerank=rerank,
+        return self._run(
+            lambda: self.memory.search(
+                query=query,
+                user_id=user_id,
+                limit=limit,
+                filters=filters,
+                threshold=threshold,
+                rerank=rerank,
+            )
         )
 
     def get_memory(self, memory_id: str) -> dict[str, Any] | None:
-        return self.memory.get(memory_id)
+        return self._run(lambda: self.memory.get(memory_id))
 
     def get_memories(
         self,
@@ -184,23 +204,25 @@ class Mem0Adapter:
         limit: int = 100,
         filters: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        return self.memory.get_all(
-            user_id=user_id,
-            limit=limit,
-            filters=filters,
+        return self._run(
+            lambda: self.memory.get_all(
+                user_id=user_id,
+                limit=limit,
+                filters=filters,
+            )
         )
 
     def update_memory(self, memory_id: str, data: str) -> dict[str, Any]:
-        return self.memory.update(memory_id=memory_id, data=data)
+        return self._run(lambda: self.memory.update(memory_id=memory_id, data=data))
 
     def delete_memory(self, memory_id: str) -> dict[str, Any]:
-        return self.memory.delete(memory_id=memory_id)
+        return self._run(lambda: self.memory.delete(memory_id=memory_id))
 
     def delete_all_memories(self, *, user_id: str) -> dict[str, Any]:
-        return self.memory.delete_all(user_id=user_id)
+        return self._run(lambda: self.memory.delete_all(user_id=user_id))
 
     def list_entities(self, *, user_id: str, limit: int = 100) -> dict[str, Any]:
-        response = self.memory.get_all(user_id=user_id, limit=limit)
+        response = self._run(lambda: self.memory.get_all(user_id=user_id, limit=limit))
         relations = response.get("relations", [])
         return {
             "user_id": user_id,
@@ -210,7 +232,7 @@ class Mem0Adapter:
         }
 
     def delete_entities(self, *, user_id: str) -> DeleteEntitiesResponse:
-        result = self.memory.delete_all(user_id=user_id)
+        result = self._run(lambda: self.memory.delete_all(user_id=user_id))
         return DeleteEntitiesResponse(
             user_id=user_id,
             detail=(

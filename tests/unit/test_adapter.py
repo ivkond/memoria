@@ -36,3 +36,45 @@ def test_build_config_raises_when_graph_credentials_missing() -> None:
     with pytest.raises(ValueError, match="Graph memory is enabled"):
         adapter._build_config()
 
+
+def test_build_config_uses_split_api_keys_when_provided() -> None:
+    settings = Settings(
+        mem0_api_key="common-key",
+        mem0_llm_api_key="llm-key",
+        mem0_embedder_api_key="embedder-key",
+    )
+    adapter = Mem0Adapter(settings)
+
+    config = adapter._build_config()
+
+    assert config["llm"]["config"]["api_key"] == "llm-key"
+    assert config["embedder"]["config"]["api_key"] == "embedder-key"
+
+
+def test_build_config_falls_back_to_common_api_key() -> None:
+    settings = Settings(
+        mem0_api_key="common-key",
+        mem0_llm_api_key=None,
+        mem0_embedder_api_key=None,
+    )
+    adapter = Mem0Adapter(settings)
+
+    config = adapter._build_config()
+
+    assert config["llm"]["config"]["api_key"] == "common-key"
+    assert config["embedder"]["config"]["api_key"] == "common-key"
+
+
+def test_add_memory_wraps_api_connection_error() -> None:
+    class APIConnectionError(Exception):
+        pass
+
+    class BrokenMemory:
+        def add(self, *_args, **_kwargs):
+            raise APIConnectionError("connection error")
+
+    adapter = Mem0Adapter(Settings())
+    adapter._memory = BrokenMemory()  # type: ignore[assignment]
+
+    with pytest.raises(RuntimeError, match="Cannot reach configured LLM/embedder endpoint"):
+        adapter.add_memory([{"role": "user", "content": "hello"}], user_id="U1")

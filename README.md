@@ -1,6 +1,6 @@
 # memory-mcp-server
 
-Standalone MCP server built with `FastMCP` and `mem0` for on-prem employee memory.
+Standalone MCP server built with `FastMCP` and `mem0` for on-prem memory.
 
 ## What it does
 
@@ -45,6 +45,10 @@ Server defaults:
 docker compose up -d --build
 ```
 
+If MCP runs in Docker and `vLLM` runs on host machine, keep base URLs like
+`http://host.docker.internal:8000/v1`. For Linux Docker Engine this project
+already adds `host-gateway` mapping in compose.
+
 ## Run tests
 
 Unit tests:
@@ -74,12 +78,18 @@ python -m pytest -q tests/e2e
 - `MEMORY_MCP_MEM0_EMBEDDER_PROVIDER`
 - `MEMORY_MCP_MEM0_EMBEDDER_BASE_URL`
 - `MEMORY_MCP_MEM0_EMBEDDER_MODEL`
+- `MEMORY_MCP_MEM0_LLM_API_KEY` (optional, overrides common key for LLM)
+- `MEMORY_MCP_MEM0_EMBEDDER_API_KEY` (optional, overrides common key for embedder)
 - `MEMORY_MCP_MEM0_API_KEY`
 - `MEMORY_MCP_MEM0_ENABLE_GRAPH` (`true`/`false`)
 - `MEMORY_MCP_MEM0_GRAPH_PROVIDER` (`memgraph`)
 - `MEMORY_MCP_MEM0_GRAPH_URL` (example: `bolt://memgraph:7687`)
 - `MEMORY_MCP_MEM0_GRAPH_USERNAME`
 - `MEMORY_MCP_MEM0_GRAPH_PASSWORD`
+
+API key behavior:
+- If `MEMORY_MCP_MEM0_LLM_API_KEY` / `MEMORY_MCP_MEM0_EMBEDDER_API_KEY` are set, they are used respectively.
+- Otherwise server falls back to `MEMORY_MCP_MEM0_API_KEY`.
 
 ## Enable MemGraph
 
