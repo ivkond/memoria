@@ -3,14 +3,14 @@
 Unofficial, community-driven MCP server for mem0 OSS.
 
 If you like mem0 but need it in MCP clients today, Memoria closes that gap:
-- Streamable HTTP MCP endpoint
-- Per-user memory scoping for trusted internal deployments
-- Drop-in Docker setup with Qdrant
-- Optional graph memory via Memgraph
+- 🌐 Streamable HTTP MCP endpoint
+- 👤 Per-user memory scoping for trusted internal deployments
+- 🐳 Drop-in Docker setup with Qdrant
+- 🕸️ Optional graph memory via Memgraph
 
 > Why this project exists: there is no official MCP server in mem0 OSS that you can run as a standalone service in your stack. Memoria gives you that bridge now.
 
-## What You Get
+## ✨ What You Get
 
 - MCP tools for storing, searching, updating, and deleting memory
 - Required `x-user-id` header for per-user scoping behind a trusted auth boundary
@@ -19,7 +19,7 @@ If you like mem0 but need it in MCP clients today, Memoria closes that gap:
 - mem0-backed memory with pluggable LLM/embedder providers
 - Optional graph relations support when graph mode is enabled
 
-## Quickstart (Docker, Recommended)
+## 🚀 Quickstart (Docker, Recommended)
 
 ```bash
 # Copy .env.example to .env and put rotated provider keys there first
@@ -31,7 +31,7 @@ Available endpoints:
 - Health: `http://localhost:8080/health`
 - Memgraph Lab UI: `http://localhost:3000`
 
-## Quickstart (Local Python)
+## 🐍 Quickstart (Local Python)
 
 ```bash
 python -m pip install -e .[dev]
@@ -42,7 +42,7 @@ Defaults:
 - MCP: `http://0.0.0.0:8080/mcp`
 - Health: `http://0.0.0.0:8080/health`
 
-## Connect from an MCP Client
+## 🔌 Connect from an MCP Client
 
 ```json
 {
@@ -60,13 +60,13 @@ Defaults:
 
 Without `x-user-id`, requests are rejected.
 
-## Security Boundary
+## 🛡️ Security Boundary
 
 `x-user-id` is an identity input, not authentication.
 
 Use Memoria only behind a trusted auth proxy or gateway that authenticates the caller and injects `x-user-id`. Direct external exposure is not a supported security model. Inside that trusted perimeter, the server enforces ownership checks for all `memory_id`-based operations so one user cannot read, update, or delete another user's memory by ID alone.
 
-## MCP Tools
+## 🧰 MCP Tools
 
 - `add_memory`
 - `search_memories`
@@ -83,7 +83,7 @@ Notes:
 - `list_entities` reads graph relations returned by mem0 when graph store is enabled.
 - `delete_entities` is mapped to `delete_all_memories` in this server.
 
-## Architecture
+## 🏗️ Architecture
 
 Memoria is intentionally simple:
 - FastMCP server (`streamable-http`)
@@ -93,7 +93,7 @@ Memoria is intentionally simple:
 
 This keeps operations transparent and makes it easy to self-host.
 
-## Configuration
+## ⚙️ Configuration
 
 Core env vars:
 - `MEMORY_MCP_HOST`
@@ -122,7 +122,7 @@ Graph mode:
 - `MEMORY_MCP_MEM0_GRAPH_USERNAME`
 - `MEMORY_MCP_MEM0_GRAPH_PASSWORD`
 
-## Tests
+## ✅ Tests
 
 Unit tests:
 
@@ -143,13 +143,13 @@ python -m pytest -q tests/e2e
 RUN_E2E=1 python -m pytest -q tests/e2e
 ```
 
-## Positioning and Scope
+## 📍 Positioning and Scope
 
 - This project is an unofficial MCP bridge maintained by the community.
 - It is focused on practical integration and fast self-hosting.
 - It does not claim affiliation with mem0.
 
-## TODO
+## 🧭 TODO
 
 - [ ] Rework authentication to OAuth-based auth flow.
 - [ ] Add role/scope-based authorization for MCP tools (read/write/admin separation).
@@ -157,6 +157,6 @@ RUN_E2E=1 python -m pytest -q tests/e2e
 - [ ] Add observability package (structured logs, Prometheus metrics, tracing).
 - [ ] Expand integration examples for major MCP clients and providers.
 
-## License
+## 📄 License
 
 MIT
