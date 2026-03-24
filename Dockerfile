@@ -8,7 +8,7 @@ COPY src /app/src
 RUN pip install --no-cache-dir . \
     && useradd --create-home --uid 10001 appuser \
     && mkdir -p /app/data \
-    && chown -R appuser:appuser /app
+    && chown appuser:appuser /app/data
 
 EXPOSE 8080
 

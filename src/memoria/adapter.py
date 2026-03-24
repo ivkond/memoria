@@ -10,6 +10,7 @@ from memoria.settings import Settings
 T = TypeVar("T")
 EMBEDDER_BASE_URL_KEYS = {
     "openai": "openai_base_url",
+    "vllm": "openai_base_url",
     "ollama": "ollama_base_url",
     "lmstudio": "lmstudio_base_url",
 }

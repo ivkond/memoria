@@ -98,6 +98,18 @@ def test_build_config_uses_provider_specific_embedder_base_url_key() -> None:
     assert "openai_base_url" not in config["embedder"]["config"]
 
 
+def test_build_config_maps_vllm_embedder_base_url_to_openai_key() -> None:
+    settings = Settings(
+        mem0_embedder_provider="vllm",
+        mem0_embedder_base_url="http://localhost:8000/v1",
+    )
+    adapter = Mem0Adapter(settings)
+
+    config = adapter._build_config()
+
+    assert config["embedder"]["config"]["openai_base_url"] == "http://localhost:8000/v1"
+
+
 def test_build_config_rejects_unsupported_embedder_base_url_provider() -> None:
     settings = Settings(
         mem0_embedder_provider="huggingface",
