@@ -25,14 +25,14 @@ services:
       MEMORIA_MEM0_EMBEDDER_MODEL: "qwen3-embedding-8b"
       MEMORIA_MEM0_EMBEDDER_API_KEY: "${MEMORIA_MEM0_EMBEDDER_API_KEY:?set MEMORIA_MEM0_EMBEDDER_API_KEY in .env or the shell environment}"
       MEMORIA_MEM0_API_KEY: "${MEMORIA_MEM0_API_KEY:-dummy}"
-      MEMORIA_MEM0_HISTORY_DB_PATH: "/data/mem0_history.db"
+      MEMORIA_MEM0_HISTORY_DB_PATH: "/app/data/mem0_history.db"
       MEMORIA_MEM0_ENABLE_GRAPH: "false"
       MEMORIA_MEM0_GRAPH_PROVIDER: "memgraph"
       MEMORIA_MEM0_GRAPH_URL: "bolt://memgraph:7687"
       MEMORIA_MEM0_GRAPH_USERNAME: "memgraph"
       MEMORIA_MEM0_GRAPH_PASSWORD: "memgraph"
     volumes:
-      - memoria-data:/data
+      - memoria-data:/app/data
     depends_on:
       qdrant:
         condition: service_started
