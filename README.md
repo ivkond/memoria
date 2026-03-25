@@ -1,5 +1,15 @@
 # Memoria
 
+[![CI](https://github.com/ivkond/memoria/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ivkond/memoria/actions/workflows/ci.yml)
+[![Bandit](https://github.com/ivkond/memoria/actions/workflows/bandit.yml/badge.svg?branch=master)](https://github.com/ivkond/memoria/actions/workflows/bandit.yml)
+[![OSV-Scanner](https://github.com/ivkond/memoria/actions/workflows/osv-scanner.yml/badge.svg?branch=master)](https://github.com/ivkond/memoria/actions/workflows/osv-scanner.yml)
+[![Trivy](https://github.com/ivkond/memoria/actions/workflows/trivy.yml/badge.svg?branch=master)](https://github.com/ivkond/memoria/actions/workflows/trivy.yml)
+[![SonarCloud](https://sonarcloud.io/api/project_badges/measure?project=ivkond_memoria&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=ivkond_memoria)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/ivkond/memoria/blob/master/LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://github.com/ivkond/memoria/blob/master/pyproject.toml)
+
+The missing self-hosted memory backend for MCP clients.
+
 Unofficial, community-driven MCP server for mem0 OSS.
 
 If you like mem0 but need it in MCP clients today, Memoria closes that gap:
