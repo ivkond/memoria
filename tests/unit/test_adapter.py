@@ -6,6 +6,13 @@ from memoria.adapter import Mem0Adapter
 from memoria.settings import Settings
 
 
+def test_settings_defaults_do_not_embed_insecure_http_urls() -> None:
+    settings = Settings()
+
+    assert settings.mem0_llm_base_url == ""
+    assert settings.mem0_embedder_base_url == ""
+
+
 def test_build_config_includes_memgraph_when_enabled() -> None:
     settings = Settings(
         mem0_enable_graph=True,
@@ -63,6 +70,55 @@ def test_build_config_falls_back_to_common_api_key() -> None:
 
     assert config["llm"]["config"]["api_key"] == "common-key"
     assert config["embedder"]["config"]["api_key"] == "common-key"
+
+
+def test_build_config_omits_empty_base_urls() -> None:
+    settings = Settings(
+        mem0_llm_base_url="",
+        mem0_embedder_base_url="",
+    )
+    adapter = Mem0Adapter(settings)
+
+    config = adapter._build_config()
+
+    assert "vllm_base_url" not in config["llm"]["config"]
+    assert "openai_base_url" not in config["embedder"]["config"]
+
+
+def test_build_config_uses_provider_specific_embedder_base_url_key() -> None:
+    settings = Settings(
+        mem0_embedder_provider="ollama",
+        mem0_embedder_base_url="http://localhost:11434",
+    )
+    adapter = Mem0Adapter(settings)
+
+    config = adapter._build_config()
+
+    assert config["embedder"]["config"]["ollama_base_url"] == "http://localhost:11434"
+    assert "openai_base_url" not in config["embedder"]["config"]
+
+
+def test_build_config_maps_vllm_embedder_base_url_to_openai_key() -> None:
+    settings = Settings(
+        mem0_embedder_provider="vllm",
+        mem0_embedder_base_url="http://localhost:8000/v1",
+    )
+    adapter = Mem0Adapter(settings)
+
+    config = adapter._build_config()
+
+    assert config["embedder"]["config"]["openai_base_url"] == "http://localhost:8000/v1"
+
+
+def test_build_config_rejects_unsupported_embedder_base_url_provider() -> None:
+    settings = Settings(
+        mem0_embedder_provider="huggingface",
+        mem0_embedder_base_url="http://localhost:9999",
+    )
+    adapter = Mem0Adapter(settings)
+
+    with pytest.raises(ValueError, match="Unsupported embedder provider"):
+        adapter._build_config()
 
 
 def test_add_memory_wraps_api_connection_error() -> None:

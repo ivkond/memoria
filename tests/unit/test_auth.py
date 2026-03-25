@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -32,9 +33,11 @@ class AsyncStateContext:
         self._state: dict[str, Any] = {}
 
     async def set_state(self, key: str, value: Any) -> None:
+        await asyncio.sleep(0)
         self._state[key] = value
 
     async def get_state(self, key: str) -> Any:
+        await asyncio.sleep(0)
         return self._state.get(key)
 
 
@@ -114,6 +117,7 @@ async def test_user_header_middleware_sets_context_state(monkeypatch: pytest.Mon
     )
 
     async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
         return "ok"
 
     result = await middleware.on_call_tool(mw_context, call_next)
@@ -133,6 +137,7 @@ async def test_user_header_middleware_supports_async_context_state(monkeypatch: 
     )
 
     async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
         return "ok"
 
     result = await middleware.on_call_tool(mw_context, call_next)
@@ -154,6 +159,7 @@ async def test_user_header_middleware_ignores_missing_session_state(
     )
 
     async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
         return "ok"
 
     assert await middleware.on_call_tool(mw_context, call_next) == "ok"
@@ -170,6 +176,7 @@ async def test_user_header_middleware_fails_without_header(monkeypatch: pytest.M
     )
 
     async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
         return "ok"
 
     with pytest.raises(ValueError, match="x-user-id"):
