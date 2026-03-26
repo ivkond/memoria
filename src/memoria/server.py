@@ -69,6 +69,51 @@ def _resolve_public_oidc_issuer_url(settings: Settings) -> str:
     return (settings.oidc_issuer_url or "").rstrip("/")
 
 
+def _metadata_paths_for_mcp_path(mcp_path: str) -> set[str]:
+    metadata_paths = {"/.well-known/oauth-authorization-server"}
+    if mcp_path != "/":
+        metadata_paths.add(f"/.well-known/oauth-authorization-server{mcp_path}")
+        metadata_paths.add(f"{mcp_path}/.well-known/oauth-authorization-server")
+    return metadata_paths
+
+
+async def _oauth_registration_payload(request: Request) -> dict[str, Any]:
+    try:
+        candidate = await request.json()
+    except Exception:  # noqa: BLE001
+        return {}
+    return candidate if isinstance(candidate, dict) else {}
+
+
+def _oauth_registration_redirect_uris(payload: dict[str, Any]) -> list[str]:
+    redirect_uris_raw = payload.get("redirect_uris", [])
+    if not isinstance(redirect_uris_raw, list):
+        return []
+    return [uri for uri in redirect_uris_raw if isinstance(uri, str) and uri.strip()]
+
+
+def _oauth_registration_response(
+    settings: Settings,
+    payload: dict[str, Any],
+    redirect_uris: list[str],
+) -> JSONResponse:
+    if not redirect_uris:
+        return JSONResponse(status_code=400, content={"error": "invalid_client_metadata"})
+    if any(not _is_allowed_redirect_uri(uri) for uri in redirect_uris):
+        return JSONResponse(status_code=400, content={"error": "invalid_redirect_uri"})
+
+    body = {
+        "client_id": settings.oidc_audience or "memoria-mcp",
+        "client_id_issued_at": int(time.time()),
+        "client_name": payload.get("client_name") or "Memoria MCP Client",
+        "token_endpoint_auth_method": "none",
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"],
+        "redirect_uris": redirect_uris,
+    }
+    return JSONResponse(status_code=201, content=body)
+
+
 def _build_oidc_validator(settings: Settings) -> OidcTokenValidator:
     validation_issuer_url = _resolve_public_oidc_issuer_url(settings) or (settings.oidc_issuer_url or "")
     return OidcTokenValidator(
@@ -132,10 +177,6 @@ def _register_oidc_oauth_routes(mcp: FastMCP, settings: Settings) -> None:
 
     metadata = _authorization_server_metadata(settings)
     mcp_path = _normalized_mcp_path(settings.mcp_path)
-    metadata_paths = {"/.well-known/oauth-authorization-server"}
-    if mcp_path != "/":
-        metadata_paths.add(f"/.well-known/oauth-authorization-server{mcp_path}")
-        metadata_paths.add(f"{mcp_path}/.well-known/oauth-authorization-server")
 
     def _build_metadata_handler() -> Any:
         def oauth_authorization_server_metadata(_: Request) -> JSONResponse:
@@ -143,41 +184,15 @@ def _register_oidc_oauth_routes(mcp: FastMCP, settings: Settings) -> None:
 
         return oauth_authorization_server_metadata
 
-    for path in metadata_paths:
+    for path in _metadata_paths_for_mcp_path(mcp_path):
         mcp.custom_route(path, methods=["GET"])(_build_metadata_handler())
 
     @mcp.custom_route("/oauth/register", methods=["POST"])
     async def oauth_register(request: Request) -> JSONResponse:
-        payload: dict[str, Any] = {}
-        try:
-            candidate = await request.json()
-            if isinstance(candidate, dict):
-                payload = candidate
-        except Exception:  # noqa: BLE001
-            payload = {}
-
-        redirect_uris_raw = payload.get("redirect_uris", [])
-        redirect_uris = (
-            [uri for uri in redirect_uris_raw if isinstance(uri, str) and uri.strip()]
-            if isinstance(redirect_uris_raw, list)
-            else []
-        )
         # This is a fixed-client helper for loopback redirects, not full dynamic client registration.
-        if not redirect_uris:
-            return JSONResponse(status_code=400, content={"error": "invalid_client_metadata"})
-        if any(not _is_allowed_redirect_uri(uri) for uri in redirect_uris):
-            return JSONResponse(status_code=400, content={"error": "invalid_redirect_uri"})
-
-        body = {
-            "client_id": settings.oidc_audience or "memoria-mcp",
-            "client_id_issued_at": int(time.time()),
-            "client_name": payload.get("client_name") or "Memoria MCP Client",
-            "token_endpoint_auth_method": "none",
-            "grant_types": ["authorization_code", "refresh_token"],
-            "response_types": ["code"],
-            "redirect_uris": redirect_uris,
-        }
-        return JSONResponse(status_code=201, content=body)
+        payload = await _oauth_registration_payload(request)
+        redirect_uris = _oauth_registration_redirect_uris(payload)
+        return _oauth_registration_response(settings, payload, redirect_uris)
 
 
 def _register_health_route(mcp: FastMCP, health_checker: HealthChecker) -> None:

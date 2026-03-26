@@ -73,9 +73,10 @@ class OidcBearerMiddleware(Middleware):
 
     def _claims_from_auth_context(self) -> dict[str, Any] | None:
         access_token = get_access_token()
-        if access_token is None or not isinstance(access_token.claims, dict):
+        claims = getattr(access_token, "claims", None)
+        if not isinstance(claims, dict):
             return None
-        return access_token.claims
+        return claims
 
     async def on_call_tool(
         self,
