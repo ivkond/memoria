@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 from urllib.parse import urlsplit
@@ -20,6 +21,7 @@ from memoria.settings import Settings
 
 TOOL_CONTEXT_REQUIRED_MESSAGE = "Tool context is required."
 MEMORY_ID_DESCRIPTION = "Memory ID."
+LOGGER = logging.getLogger(__name__)
 
 
 async def _require_tool_user_id(
@@ -80,7 +82,8 @@ def _metadata_paths_for_mcp_path(mcp_path: str) -> set[str]:
 async def _oauth_registration_payload(request: Request) -> dict[str, Any]:
     try:
         candidate = await request.json()
-    except Exception:  # noqa: BLE001
+    except Exception as error:  # noqa: BLE001
+        LOGGER.debug("Ignoring invalid oauth registration payload", exc_info=error)
         return {}
     return candidate if isinstance(candidate, dict) else {}
 

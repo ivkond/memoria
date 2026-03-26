@@ -45,6 +45,8 @@ def test_keycloak_realm_uses_pkce_for_public_client_and_separate_direct_grants_c
     e2e_client = clients["memoria-e2e"]
     assert e2e_client["directAccessGrantsEnabled"] is True
     assert e2e_client["publicClient"] is True
+    assert "production" in e2e_client["description"].lower()
+    assert "local e2e only" in e2e_client["description"].lower()
 
 
 def test_readme_contains_bearer_auth_example() -> None:

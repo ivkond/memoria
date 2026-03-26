@@ -314,3 +314,80 @@ async def test_oidc_middleware_prefers_existing_auth_context(monkeypatch: pytest
 
     assert result == "ok"
     assert await context.get_state(USER_ID_STATE_KEY) == "alice-id"
+
+
+@pytest.mark.asyncio
+async def test_oidc_middleware_falls_back_to_validator_when_auth_context_token_differs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called: dict[str, Any] = {}
+
+    class RecordingValidator:
+        def validate(self, token: str) -> dict[str, str]:
+            called["token"] = token
+            return {"sub": "bob-id"}
+
+    async def fake_to_thread(func: Any, /, *args: Any, **kwargs: Any) -> Any:
+        called["offloaded"] = True
+        return func(*args, **kwargs)
+
+    middleware = OidcBearerMiddleware(token_validator=RecordingValidator())
+    context = AsyncStateContext()
+    mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
+    monkeypatch.setattr(
+        "memoria.auth.get_http_request",
+        lambda: _request_with_headers({"authorization": "Bearer token-1"}),
+    )
+    monkeypatch.setattr(
+        auth_module,
+        "get_access_token",
+        lambda: AccessToken(
+            token="different-token",
+            client_id="memoria-client",
+            scopes=["read"],
+            claims={"sub": "alice-id"},
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(auth_module, "asyncio", SimpleNamespace(to_thread=fake_to_thread), raising=False)
+
+    async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    result = await middleware.on_call_tool(mw_context, call_next)
+
+    assert result == "ok"
+    assert await context.get_state(USER_ID_STATE_KEY) == "bob-id"
+    assert called == {"offloaded": True, "token": "token-1"}
+
+
+@pytest.mark.asyncio
+async def test_oidc_middleware_rejects_auth_context_without_subject_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    middleware = OidcBearerMiddleware(token_validator=FakeTokenValidator({"sub": "validator-user"}))
+    context = AsyncStateContext()
+    mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
+    monkeypatch.setattr(
+        "memoria.auth.get_http_request",
+        lambda: _request_with_headers({"authorization": "Bearer token-1"}),
+    )
+    monkeypatch.setattr(
+        auth_module,
+        "get_access_token",
+        lambda: AccessToken(
+            token="token-1",
+            client_id="memoria-client",
+            scopes=["read"],
+            claims={},
+        ),
+        raising=False,
+    )
+
+    async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    with pytest.raises(ValueError, match="invalid token claims"):
+        await middleware.on_call_tool(mw_context, call_next)

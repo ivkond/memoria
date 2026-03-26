@@ -71,12 +71,20 @@ class OidcBearerMiddleware(Middleware):
         self._token_validator = token_validator
         self._subject_claim = subject_claim
 
-    def _claims_from_auth_context(self) -> dict[str, Any] | None:
+    def _claims_from_auth_context(self, token: str) -> dict[str, Any] | None:
         access_token = get_access_token()
+        if getattr(access_token, "token", None) != token:
+            return None
         claims = getattr(access_token, "claims", None)
         if not isinstance(claims, dict):
             return None
         return claims
+
+    def _user_id_from_claims(self, claims: dict[str, Any]) -> str:
+        subject = claims.get(self._subject_claim)
+        if not isinstance(subject, str) or not subject.strip():
+            raise ValueError("invalid token claims")
+        return subject.strip()
 
     async def on_call_tool(
         self,
@@ -92,10 +100,10 @@ class OidcBearerMiddleware(Middleware):
         if not token:
             raise ValueError("missing bearer token")
 
-        claims = self._claims_from_auth_context()
+        claims = self._claims_from_auth_context(token)
         if claims is None:
             claims = await asyncio.to_thread(self._token_validator.validate, token)
-        user_id = str(claims[self._subject_claim]).strip()
+        user_id = self._user_id_from_claims(claims)
         setattr(request.state, USER_ID_STATE_KEY, user_id)
 
         if context.fastmcp_context is not None:

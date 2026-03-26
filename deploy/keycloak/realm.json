@@ -48,6 +48,7 @@
     {
       "clientId": "memoria-e2e",
       "name": "Memoria E2E Client",
+      "description": "Local E2E only. Remove or disable this client in production realm imports.",
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": false,
