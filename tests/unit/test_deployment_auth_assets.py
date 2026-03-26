@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,6 +22,25 @@ def test_env_example_lists_oidc_variables() -> None:
     assert "MEMORIA_AUTH_MODE=" in env_example
     assert "MEMORIA_OIDC_ISSUER_URL=" in env_example
     assert "MEMORIA_OIDC_AUDIENCE=" in env_example
+
+
+def test_compose_requires_mem0_api_keys() -> None:
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    assert '${MEMORIA_MEM0_LLM_API_KEY:?set MEMORIA_MEM0_LLM_API_KEY in .env or the shell environment}' in compose
+    assert '${MEMORIA_MEM0_EMBEDDER_API_KEY:?set MEMORIA_MEM0_EMBEDDER_API_KEY in .env or the shell environment}' in compose
+
+
+def test_keycloak_realm_uses_pkce_for_public_client_and_separate_direct_grants_client() -> None:
+    realm = json.loads((ROOT / "deploy" / "keycloak" / "realm.json").read_text(encoding="utf-8"))
+    clients = {client["clientId"]: client for client in realm["clients"]}
+
+    public_client = clients["memoria-mcp"]
+    assert public_client["standardFlowEnabled"] is True
+    assert public_client["directAccessGrantsEnabled"] is False
+
+    e2e_client = clients["memoria-e2e"]
+    assert e2e_client["directAccessGrantsEnabled"] is True
+    assert e2e_client["publicClient"] is True
 
 
 def test_readme_contains_bearer_auth_example() -> None:

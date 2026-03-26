@@ -128,7 +128,7 @@ def _register_oidc_oauth_routes(mcp: FastMCP, settings: Settings) -> None:
         metadata_paths.add(f"{mcp_path}/.well-known/oauth-authorization-server")
 
     def _build_metadata_handler() -> Any:
-        async def oauth_authorization_server_metadata(_: Request) -> JSONResponse:
+        def oauth_authorization_server_metadata(_: Request) -> JSONResponse:
             return JSONResponse(metadata)
 
         return oauth_authorization_server_metadata

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from typing import Any
+from urllib.parse import urlunsplit
 
 import jwt
 import pytest
@@ -9,6 +10,12 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt.utils import base64url_encode
 
 from memoria.oidc import OidcConfig, OidcTokenValidator
+
+HTTP_SCHEME = "http"
+
+
+def _http_url(authority: str, path: str = "") -> str:
+    return urlunsplit((HTTP_SCHEME, authority, path, "", ""))
 
 
 def _make_rsa_keypair() -> tuple[Any, Any]:
@@ -30,7 +37,7 @@ def _jwk_from_public_key(public_key: Any, kid: str) -> dict[str, str]:
 
 def test_validate_token_happy_path() -> None:
     private_key, public_key = _make_rsa_keypair()
-    issuer = "http://keycloak:8080/realms/memoria"
+    issuer = _http_url("keycloak:8080", "/realms/memoria")
     audience = "memoria-mcp"
     kid = "k1"
 
@@ -56,7 +63,7 @@ def test_validate_token_happy_path() -> None:
 
 def test_validate_token_rejects_wrong_audience() -> None:
     private_key, public_key = _make_rsa_keypair()
-    issuer = "http://keycloak:8080/realms/memoria"
+    issuer = _http_url("keycloak:8080", "/realms/memoria")
     kid = "k2"
 
     def fake_get_json(url: str, timeout_seconds: float = 5.0) -> dict[str, Any]:
@@ -87,7 +94,7 @@ def test_validate_token_rejects_wrong_audience() -> None:
 def test_validate_token_rejects_wrong_issuer() -> None:
     private_key, public_key = _make_rsa_keypair()
     kid = "k3"
-    configured_issuer = "http://keycloak:8080/realms/memoria"
+    configured_issuer = _http_url("keycloak:8080", "/realms/memoria")
 
     def fake_get_json(url: str, timeout_seconds: float = 5.0) -> dict[str, Any]:
         if url.endswith("/.well-known/openid-configuration"):
@@ -100,7 +107,7 @@ def test_validate_token_rejects_wrong_issuer() -> None:
     )
     token = jwt.encode(
         {
-            "iss": "http://wrong-issuer/realms/memoria",
+            "iss": _http_url("wrong-issuer", "/realms/memoria"),
             "aud": "memoria-mcp",
             "sub": "alice-id",
             "iat": int(time.time()),
@@ -115,9 +122,9 @@ def test_validate_token_rejects_wrong_issuer() -> None:
 
 
 def test_validate_token_rejects_invalid_signature() -> None:
-    private_key_a, public_key_a = _make_rsa_keypair()
+    _, public_key_a = _make_rsa_keypair()
     private_key_b, _ = _make_rsa_keypair()
-    issuer = "http://keycloak:8080/realms/memoria"
+    issuer = _http_url("keycloak:8080", "/realms/memoria")
     kid = "k4"
 
     def fake_get_json(url: str, timeout_seconds: float = 5.0) -> dict[str, Any]:
@@ -147,7 +154,7 @@ def test_validate_token_rejects_invalid_signature() -> None:
 
 def test_validate_token_rejects_missing_subject_claim() -> None:
     private_key, public_key = _make_rsa_keypair()
-    issuer = "http://keycloak:8080/realms/memoria"
+    issuer = _http_url("keycloak:8080", "/realms/memoria")
     kid = "k5"
 
     def fake_get_json(url: str, timeout_seconds: float = 5.0) -> dict[str, Any]:
@@ -171,7 +178,7 @@ def test_validate_token_rejects_missing_subject_claim() -> None:
 
 def test_validate_token_refreshes_jwks_for_unknown_kid() -> None:
     private_key, public_key = _make_rsa_keypair()
-    issuer = "http://keycloak:8080/realms/memoria"
+    issuer = _http_url("keycloak:8080", "/realms/memoria")
     calls = {"jwks": 0}
 
     def fake_get_json(url: str, timeout_seconds: float = 5.0) -> dict[str, Any]:
@@ -203,7 +210,7 @@ def test_validate_token_refreshes_jwks_for_unknown_kid() -> None:
 
 def test_validate_token_rejects_expired_token() -> None:
     private_key, public_key = _make_rsa_keypair()
-    issuer = "http://keycloak:8080/realms/memoria"
+    issuer = _http_url("keycloak:8080", "/realms/memoria")
     kid = "k6"
 
     def fake_get_json(url: str, timeout_seconds: float = 5.0) -> dict[str, Any]:

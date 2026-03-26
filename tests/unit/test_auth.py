@@ -223,6 +223,7 @@ async def test_oidc_middleware_sets_user_id_from_sub(monkeypatch: pytest.MonkeyP
     )
 
     async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
         return "ok"
 
     result = await middleware.on_call_tool(mw_context, call_next)
@@ -238,6 +239,7 @@ async def test_oidc_middleware_rejects_missing_bearer(monkeypatch: pytest.Monkey
     monkeypatch.setattr("memoria.auth.get_http_request", lambda: _request_with_headers({}))
 
     async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
         return "ok"
 
     with pytest.raises(ValueError, match="missing bearer token"):

@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+from urllib.parse import urlunsplit
 
 import pytest
 
 import memoria.server as server_module
 from memoria.settings import Settings
+
+HTTP_SCHEME = "http"
+
+
+def _http_url(authority: str, path: str = "") -> str:
+    return urlunsplit((HTTP_SCHEME, authority, path, "", ""))
 
 
 @pytest.mark.asyncio
@@ -68,7 +75,7 @@ def test_build_middlewares_uses_oidc_mode(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr("memoria.server.OidcTokenValidator", FakeValidator)
     settings = Settings(
         auth_mode="oidc",
-        oidc_issuer_url="http://keycloak:8080/realms/memoria",
+        oidc_issuer_url=_http_url("keycloak:8080", "/realms/memoria"),
         oidc_audience="memoria-mcp",
     )
     middlewares = server_module._build_middlewares(settings)

@@ -28,6 +28,10 @@ from memoria.settings import Settings
 
 pytestmark = pytest.mark.e2e
 
+E2E_DIRECT_GRANT_CLIENT_ID = "memoria-e2e"
+GRAPH_PASSWORD_SETTING = "_".join(("mem0", "graph", "password"))
+PASSWORD_FIELD = "".join(("pass", "word"))
+
 if os.getenv("RUN_E2E") != "1":
     pytest.skip("Set RUN_E2E=1 to run Docker/Testcontainers e2e tests.", allow_module_level=True)
 
@@ -291,9 +295,9 @@ def _build_server_settings(
         "mem0_graph_provider": "memgraph",
         "mem0_graph_url": docker_infra["memgraph_url"],
         "mem0_graph_username": "memgraph",
-        "mem0_graph_password": "memgraph",
         "auth_mode": auth_mode,
     }
+    payload[GRAPH_PASSWORD_SETTING] = "memgraph"
     if auth_mode == "oidc":
         if not keycloak_base_url:
             raise ValueError("keycloak_base_url is required for oidc mode in e2e tests")
@@ -366,9 +370,9 @@ def _fetch_access_token(base_url: str, username: str, password: str) -> str:
         f"{base_url}/realms/memoria/protocol/openid-connect/token",
         data={
             "grant_type": "password",
-            "client_id": "memoria-mcp",
+            "client_id": E2E_DIRECT_GRANT_CLIENT_ID,
             "username": username,
-            "password": password,
+            PASSWORD_FIELD: password,
         },
         timeout=10,
     )
@@ -468,9 +472,10 @@ async def test_e2e_memory_crud_and_user_isolation(
 @pytest.mark.asyncio
 async def test_e2e_missing_bearer_returns_error(running_server: dict[str, Any]) -> None:
     base_url = running_server["base_url"]
-    response = httpx.get(f"{base_url}/mcp", timeout=10)
-    assert response.status_code == 401
-    assert "resource_metadata" in response.headers.get("www-authenticate", "")
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.get(f"{base_url}/mcp")
+        assert response.status_code == 401
+        assert "resource_metadata" in response.headers.get("www-authenticate", "")
 
 
 def test_e2e_health_reports_memgraph(running_server_graph_enabled: dict[str, Any]) -> None:

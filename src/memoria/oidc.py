@@ -10,6 +10,8 @@ import httpx
 import jwt
 from fastmcp.server.auth import AccessToken, TokenVerifier
 
+INVALID_TOKEN_MESSAGE = "invalid token"
+
 
 @dataclass(frozen=True)
 class OidcConfig:
@@ -93,7 +95,7 @@ class OidcTokenValidator:
         self._refresh_jwks()
         key = self._cache.get(kid)
         if key is None:
-            raise ValueError("invalid token")
+            raise ValueError(INVALID_TOKEN_MESSAGE)
         return key
 
     def validate(self, token: str) -> dict[str, Any]:
@@ -101,7 +103,7 @@ class OidcTokenValidator:
             header = jwt.get_unverified_header(token)
             kid = header.get("kid")
             if not isinstance(kid, str) or not kid:
-                raise ValueError("invalid token")
+                raise ValueError(INVALID_TOKEN_MESSAGE)
 
             key = self._get_key_for_kid(kid)
             claims = jwt.decode(
@@ -114,7 +116,7 @@ class OidcTokenValidator:
                 options={"require": ["exp", "iat"]},
             )
         except jwt.PyJWTError as error:
-            raise ValueError("invalid token") from error
+            raise ValueError(INVALID_TOKEN_MESSAGE) from error
 
         subject = claims.get(self._config.subject_claim)
         if not isinstance(subject, str) or not subject.strip():
