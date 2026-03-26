@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Literal
 
 from pydantic import model_validator
@@ -54,8 +55,23 @@ class Settings(BaseSettings):
     mem0_graph_username: str | None = "memgraph"
     mem0_graph_password: str | None = "memgraph"
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_removed_mem0_api_key(cls, data: object) -> object:
+        if isinstance(data, dict) and "mem0_api_key" in data:
+            raise ValueError(
+                "MEMORIA_MEM0_API_KEY has been removed. "
+                "Use MEMORIA_MEM0_LLM_API_KEY and MEMORIA_MEM0_EMBEDDER_API_KEY instead."
+            )
+        return data
+
     @model_validator(mode="after")
     def _validate_auth_mode_settings(self) -> "Settings":
+        if os.getenv("MEMORIA_MEM0_API_KEY"):
+            raise ValueError(
+                "MEMORIA_MEM0_API_KEY has been removed. "
+                "Use MEMORIA_MEM0_LLM_API_KEY and MEMORIA_MEM0_EMBEDDER_API_KEY instead."
+            )
         if self.auth_mode == "oidc":
             if not self.oidc_issuer_url:
                 raise ValueError("MEMORIA_OIDC_ISSUER_URL is required when MEMORIA_AUTH_MODE=oidc.")

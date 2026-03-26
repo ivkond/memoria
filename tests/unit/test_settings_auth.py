@@ -21,6 +21,9 @@ def _clean_memoria_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "MEMORIA_OIDC_ISSUER_URL",
         "MEMORIA_OIDC_AUDIENCE",
         "MEMORIA_OIDC_SUBJECT_CLAIM",
+        "MEMORIA_MEM0_API_KEY",
+        "MEMORIA_MEM0_LLM_API_KEY",
+        "MEMORIA_MEM0_EMBEDDER_API_KEY",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -58,3 +61,15 @@ def test_settings_accepts_oidc_mode_configuration() -> None:
         oidc_audience="memoria-mcp",
     )
     assert settings.auth_mode == "oidc"
+
+
+def test_settings_reject_removed_mem0_api_key_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MEMORIA_MEM0_API_KEY", "legacy-key")
+
+    with pytest.raises(ValidationError, match="MEMORIA_MEM0_API_KEY has been removed"):
+        Settings()
+
+
+def test_settings_reject_removed_mem0_api_key_kwarg() -> None:
+    with pytest.raises(ValidationError, match="MEMORIA_MEM0_API_KEY has been removed"):
+        Settings(mem0_api_key="legacy-key")
