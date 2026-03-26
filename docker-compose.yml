@@ -12,19 +12,26 @@ services:
       MEMORIA_HOST: "0.0.0.0"
       MEMORIA_PORT: "8080"
       MEMORIA_MCP_PATH: "/mcp"
+      MEMORIA_AUTH_MODE: "${MEMORIA_AUTH_MODE:-legacy_header}"
       MEMORIA_USER_HEADER_NAME: "x-user-id"
+      MEMORIA_PUBLIC_BASE_URL: "${MEMORIA_PUBLIC_BASE_URL:-http://localhost:8080}"
+      MEMORIA_OIDC_ISSUER_URL: "${MEMORIA_OIDC_ISSUER_URL:-http://localhost:18081/realms/memoria}"
+      MEMORIA_OIDC_PUBLIC_ISSUER_URL: "${MEMORIA_OIDC_PUBLIC_ISSUER_URL:-http://localhost:18081/realms/memoria}"
+      MEMORIA_OIDC_JWKS_URL: "${MEMORIA_OIDC_JWKS_URL:-http://keycloak:8080/realms/memoria/protocol/openid-connect/certs}"
+      MEMORIA_OIDC_AUDIENCE: "${MEMORIA_OIDC_AUDIENCE:-memoria-mcp}"
+      MEMORIA_OIDC_SUBJECT_CLAIM: "${MEMORIA_OIDC_SUBJECT_CLAIM:-sub}"
+      MEMORIA_OIDC_JWKS_CACHE_TTL_SECONDS: "${MEMORIA_OIDC_JWKS_CACHE_TTL_SECONDS:-300}"
       MEMORIA_QDRANT_HOST: "qdrant"
       MEMORIA_QDRANT_PORT: "6333"
       MEMORIA_QDRANT_COLLECTION_NAME: "mem0"
       MEMORIA_MEM0_LLM_PROVIDER: "openai"
       MEMORIA_MEM0_LLM_BASE_URL: "https://api.aitunnel.ru/v1/"
       MEMORIA_MEM0_LLM_MODEL: "gpt-5.4-nano"
-      MEMORIA_MEM0_LLM_API_KEY: "${MEMORIA_MEM0_LLM_API_KEY:?set MEMORIA_MEM0_LLM_API_KEY in .env or the shell environment}"
+      MEMORIA_MEM0_LLM_API_KEY: "${MEMORIA_MEM0_LLM_API_KEY:-dummy}"
       MEMORIA_MEM0_EMBEDDER_PROVIDER: "openai"
       MEMORIA_MEM0_EMBEDDER_BASE_URL: "https://api.aitunnel.ru/v1/"
       MEMORIA_MEM0_EMBEDDER_MODEL: "qwen3-embedding-8b"
-      MEMORIA_MEM0_EMBEDDER_API_KEY: "${MEMORIA_MEM0_EMBEDDER_API_KEY:?set MEMORIA_MEM0_EMBEDDER_API_KEY in .env or the shell environment}"
-      MEMORIA_MEM0_API_KEY: "${MEMORIA_MEM0_API_KEY:-dummy}"
+      MEMORIA_MEM0_EMBEDDER_API_KEY: "${MEMORIA_MEM0_EMBEDDER_API_KEY:-dummy}"
       MEMORIA_MEM0_HISTORY_DB_PATH: "/app/data/mem0_history.db"
       MEMORIA_MEM0_ENABLE_GRAPH: "false"
       MEMORIA_MEM0_GRAPH_PROVIDER: "memgraph"
@@ -38,6 +45,31 @@ services:
         condition: service_started
       memgraph:
         condition: service_started
+
+  keycloak:
+    profiles: ["oidc"]
+    image: quay.io/keycloak/keycloak:26.1
+    container_name: memoria-keycloak
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      KEYCLOAK_ADMIN: "admin"
+      KEYCLOAK_ADMIN_PASSWORD: "admin"
+    ports:
+      - "${MEMORIA_KEYCLOAK_HOST_PORT:-18081}:8080"
+    volumes:
+      - ./deploy/keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bash -lc 'exec 3<>/dev/tcp/localhost/8080 && printf \"GET /realms/memoria/.well-known/openid-configuration HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && read -r status <&3 && [[ \"$$status\" == *\"200\"* ]]'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
 
   qdrant:
     image: qdrant/qdrant:latest
