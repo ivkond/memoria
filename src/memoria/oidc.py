@@ -114,7 +114,7 @@ class OidcTokenValidator:
                 audience=self._config.audience,
                 issuer=self._config.issuer_url,
                 # nbf is validated by PyJWT automatically when present.
-                options={"require": ["exp", "iat"]},
+                options={"require": ["exp"]},
             )
         except jwt.PyJWTError as error:
             raise ValueError(INVALID_TOKEN_MESSAGE) from error

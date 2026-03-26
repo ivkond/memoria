@@ -75,11 +75,20 @@ Without a bearer token, requests are rejected.
 
 For local Keycloak profile, issuer is `http://localhost:18081/realms/memoria`.
 
+OAuth metadata note:
+- Memoria exposes MCP-facing OAuth metadata from its own public base URL for resource discovery.
+- Browser-facing authorization, token, and JWKS endpoints still point at the configured Keycloak issuer.
+- Generic RFC 8414 clients that expect `issuer` to match the upstream authorization server exactly may reject this layout; MCP clients should follow the advertised endpoints instead.
+
 ## 🛡️ Security Boundary
 
 In `oidc` mode, identity is derived from validated JWT claims (`sub` by default).
 
 `legacy_header` mode remains available for migration only. In this mode `x-user-id` is an identity input, not authentication, and should be used only behind a trusted auth proxy/gateway.
+
+Local Keycloak realm note:
+- `deploy/keycloak/realm.json` includes a `memoria-e2e` client with direct access grants enabled for local-test only automation.
+- Production realm imports should remove that client or disable direct access grants.
 
 ## 🧰 MCP Tools
 

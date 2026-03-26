@@ -52,3 +52,11 @@ def test_readme_contains_bearer_auth_example() -> None:
     assert "authorization" in readme
     assert "bearer <access_token>" in readme
     assert "keycloak" in readme
+
+
+def test_readme_calls_out_mcp_metadata_and_test_only_e2e_client() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").lower()
+    assert "oauth metadata" in readme
+    assert "issuer" in readme
+    assert "memoria-e2e" in readme
+    assert "local-test only" in readme

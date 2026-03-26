@@ -78,6 +78,21 @@ def test_oauth_registration_endpoint_returns_static_public_client() -> None:
         assert payload["redirect_uris"] == [_http_url("127.0.0.1:54321", "/callback")]
 
 
+def test_oauth_registration_rejects_redirect_uri_outside_keycloak_loopback_patterns() -> None:
+    app = _build_oidc_app()
+    with TestClient(app) as client:
+        response = client.post(
+            "/oauth/register",
+            json={
+                "redirect_uris": [_http_url("example.com", "/callback")],
+                "client_name": "Kilo MCP Client",
+            },
+        )
+        assert response.status_code == 400
+        payload = response.json()
+        assert payload["error"] == "invalid_redirect_uri"
+
+
 def test_streamable_http_requires_bearer_and_returns_401() -> None:
     app = _build_oidc_app()
     with TestClient(app) as client:

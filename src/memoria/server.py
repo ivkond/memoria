@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastmcp import Context, FastMCP
 from fastmcp.server.auth import RemoteAuthProvider
@@ -54,6 +55,12 @@ def _parse_required_scopes(raw_scopes: str | None) -> list[str]:
     if not raw_scopes:
         return []
     return [scope for scope in raw_scopes.split() if scope]
+
+
+def _is_allowed_redirect_uri(uri: str) -> bool:
+    parsed = urlsplit(uri)
+    hostname = parsed.hostname
+    return parsed.scheme == "http" and hostname in {"127.0.0.1", "localhost", "::1"}
 
 
 def _resolve_public_oidc_issuer_url(settings: Settings) -> str:
@@ -152,6 +159,8 @@ def _register_oidc_oauth_routes(mcp: FastMCP, settings: Settings) -> None:
             if isinstance(redirect_uris_raw, list)
             else []
         )
+        if any(not _is_allowed_redirect_uri(uri) for uri in redirect_uris):
+            return JSONResponse(status_code=400, content={"error": "invalid_redirect_uri"})
 
         body = {
             "client_id": settings.oidc_audience or "memoria-mcp",

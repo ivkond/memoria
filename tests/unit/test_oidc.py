@@ -63,6 +63,32 @@ def test_validate_token_happy_path() -> None:
     assert claims["sub"] == "alice-id"
 
 
+def test_validate_token_accepts_missing_iat() -> None:
+    private_key, public_key = _make_rsa_keypair()
+    issuer = _http_url("keycloak:8080", "/realms/memoria")
+    audience = "memoria-mcp"
+    kid = "k1-no-iat"
+
+    def fake_get_json(url: str, timeout_seconds: float = 5.0) -> dict[str, Any]:
+        if url.endswith("/.well-known/openid-configuration"):
+            return {"jwks_uri": f"{issuer}/protocol/openid-connect/certs"}
+        return {"keys": [_jwk_from_public_key(public_key, kid)]}
+
+    validator = OidcTokenValidator(
+        OidcConfig(issuer_url=issuer, audience=audience, subject_claim="sub", jwks_ttl_seconds=300),
+        get_json=fake_get_json,
+    )
+    token = jwt.encode(
+        {"iss": issuer, "aud": audience, "sub": "alice-id", "exp": int(time.time()) + 600},
+        private_key,
+        algorithm="RS256",
+        headers={"kid": kid},
+    )
+
+    claims = validator.validate(token)
+    assert claims["sub"] == "alice-id"
+
+
 def test_validate_token_rejects_wrong_audience() -> None:
     private_key, public_key = _make_rsa_keypair()
     issuer = _http_url("keycloak:8080", "/realms/memoria")
