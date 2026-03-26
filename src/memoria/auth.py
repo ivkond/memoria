@@ -8,6 +8,7 @@ from fastmcp import Context
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import Middleware
 from fastmcp.server.middleware.middleware import MiddlewareContext
+from mcp.server.auth.middleware.auth_context import get_access_token
 
 from memoria.oidc import OidcTokenValidator
 
@@ -70,6 +71,12 @@ class OidcBearerMiddleware(Middleware):
         self._token_validator = token_validator
         self._subject_claim = subject_claim
 
+    def _claims_from_auth_context(self) -> dict[str, Any] | None:
+        access_token = get_access_token()
+        if access_token is None or not isinstance(access_token.claims, dict):
+            return None
+        return access_token.claims
+
     async def on_call_tool(
         self,
         context: MiddlewareContext[Any],
@@ -84,7 +91,9 @@ class OidcBearerMiddleware(Middleware):
         if not token:
             raise ValueError("missing bearer token")
 
-        claims = await asyncio.to_thread(self._token_validator.validate, token)
+        claims = self._claims_from_auth_context()
+        if claims is None:
+            claims = await asyncio.to_thread(self._token_validator.validate, token)
         user_id = str(claims[self._subject_claim]).strip()
         setattr(request.state, USER_ID_STATE_KEY, user_id)
 

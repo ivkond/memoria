@@ -79,6 +79,9 @@ OAuth metadata note:
 - Memoria exposes MCP-facing OAuth metadata from its own public base URL for resource discovery.
 - Browser-facing authorization, token, and JWKS endpoints still point at the configured Keycloak issuer.
 - Generic RFC 8414 clients that expect `issuer` to match the upstream authorization server exactly may reject this layout; MCP clients should follow the advertised endpoints instead.
+- `/oauth/register` is a fixed-client helper for MCP loopback callbacks and does not persist dynamic client registration back into Keycloak.
+- Redirect URIs are limited to loopback `http` callbacks (`127.0.0.1`, `localhost`, `::1`); non-loopback hosts, `https` loopback, and native custom URL schemes need a different integration path.
+- Token validation is currently Keycloak-oriented and expects RS256 JWKS signing keys.
 
 ## 🛡️ Security Boundary
 

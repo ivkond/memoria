@@ -60,3 +60,6 @@ def test_readme_calls_out_mcp_metadata_and_test_only_e2e_client() -> None:
     assert "issuer" in readme
     assert "memoria-e2e" in readme
     assert "local-test only" in readme
+    assert "does not persist dynamic client registration" in readme
+    assert "loopback" in readme
+    assert "rs256" in readme

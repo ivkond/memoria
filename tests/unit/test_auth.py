@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from fastmcp.server.auth import AccessToken
 from fastmcp.server.middleware.middleware import MiddlewareContext
 from starlette.requests import Request
 
@@ -278,3 +279,38 @@ async def test_oidc_middleware_offloads_token_validation(monkeypatch: pytest.Mon
 
     assert result == "ok"
     assert called == {"offloaded": True, "token": "token-1"}
+
+
+@pytest.mark.asyncio
+async def test_oidc_middleware_prefers_existing_auth_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FailingValidator:
+        def validate(self, token: str) -> dict[str, str]:
+            raise AssertionError("validator should not run when auth context already has claims")
+
+    middleware = OidcBearerMiddleware(token_validator=FailingValidator())
+    context = AsyncStateContext()
+    mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
+    monkeypatch.setattr(
+        "memoria.auth.get_http_request",
+        lambda: _request_with_headers({"authorization": "Bearer token-1"}),
+    )
+    monkeypatch.setattr(
+        auth_module,
+        "get_access_token",
+        lambda: AccessToken(
+            token="token-1",
+            client_id="memoria-client",
+            scopes=["read"],
+            claims={"sub": "alice-id"},
+        ),
+        raising=False,
+    )
+
+    async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    result = await middleware.on_call_tool(mw_context, call_next)
+
+    assert result == "ok"
+    assert await context.get_state(USER_ID_STATE_KEY) == "alice-id"

@@ -82,14 +82,17 @@ def _build_oidc_validator(settings: Settings) -> OidcTokenValidator:
     )
 
 
-def _build_auth_provider(settings: Settings) -> RemoteAuthProvider | None:
+def _build_auth_provider(
+    settings: Settings,
+    validator: OidcTokenValidator | None = None,
+) -> RemoteAuthProvider | None:
     if settings.auth_mode != "oidc":
         return None
 
     public_base_url = _resolve_public_base_url(settings)
-    validator = _build_oidc_validator(settings)
+    token_validator = validator or _build_oidc_validator(settings)
     token_verifier = OidcTokenVerifier(
-        validator,
+        token_validator,
         required_scopes=_parse_required_scopes(settings.oidc_required_scopes),
         base_url=public_base_url,
     )
@@ -159,6 +162,9 @@ def _register_oidc_oauth_routes(mcp: FastMCP, settings: Settings) -> None:
             if isinstance(redirect_uris_raw, list)
             else []
         )
+        # This is a fixed-client helper for loopback redirects, not full dynamic client registration.
+        if not redirect_uris:
+            return JSONResponse(status_code=400, content={"error": "invalid_client_metadata"})
         if any(not _is_allowed_redirect_uri(uri) for uri in redirect_uris):
             return JSONResponse(status_code=400, content={"error": "invalid_redirect_uri"})
 
@@ -347,10 +353,13 @@ def _register_memory_tools(
         return response.model_dump()
 
 
-def _build_middlewares(settings: Settings) -> list[Middleware]:
+def _build_middlewares(
+    settings: Settings,
+    validator: OidcTokenValidator | None = None,
+) -> list[Middleware]:
     if settings.auth_mode == "oidc":
-        validator = _build_oidc_validator(settings)
-        return [OidcBearerMiddleware(token_validator=validator, subject_claim=settings.oidc_subject_claim)]
+        token_validator = validator or _build_oidc_validator(settings)
+        return [OidcBearerMiddleware(token_validator=token_validator, subject_claim=settings.oidc_subject_claim)]
     return [UserHeaderMiddleware(settings.user_header_name)]
 
 
@@ -363,7 +372,8 @@ def create_server(
     app_adapter = adapter or Mem0Adapter(app_settings)
     app_health = health_checker or HealthChecker(app_settings)
     service = MemoryService(app_adapter)
-    auth_provider = _build_auth_provider(app_settings)
+    oidc_validator = _build_oidc_validator(app_settings) if app_settings.auth_mode == "oidc" else None
+    auth_provider = _build_auth_provider(app_settings, validator=oidc_validator)
 
     mcp = FastMCP(
         "memoria",
@@ -373,7 +383,7 @@ def create_server(
             "Legacy x-user-id header mode is temporary and should only be used behind a trusted boundary."
         ),
         auth=auth_provider,
-        middleware=_build_middlewares(app_settings),
+        middleware=_build_middlewares(app_settings, validator=oidc_validator),
     )
 
     _register_health_route(mcp, app_health)

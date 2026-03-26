@@ -93,9 +93,32 @@ def test_oauth_registration_rejects_redirect_uri_outside_keycloak_loopback_patte
         assert payload["error"] == "invalid_redirect_uri"
 
 
+def test_oauth_registration_requires_at_least_one_redirect_uri() -> None:
+    app = _build_oidc_app()
+    with TestClient(app) as client:
+        response = client.post(
+            "/oauth/register",
+            json={
+                "redirect_uris": [],
+                "client_name": "Kilo MCP Client",
+            },
+        )
+        assert response.status_code == 400
+        payload = response.json()
+        assert payload["error"] == "invalid_client_metadata"
+
+
 def test_streamable_http_requires_bearer_and_returns_401() -> None:
     app = _build_oidc_app()
     with TestClient(app) as client:
         response = client.get("/mcp")
         assert response.status_code == 401
         assert "resource_metadata" in response.headers.get("www-authenticate", "")
+
+
+def test_streamable_http_rejects_invalid_bearer_with_401() -> None:
+    app = _build_oidc_app()
+    with TestClient(app) as client:
+        response = client.get("/mcp", headers={"authorization": "Bearer invalid-token"})
+        assert response.status_code == 401
+        assert "invalid_token" in response.headers.get("www-authenticate", "")

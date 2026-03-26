@@ -51,6 +51,7 @@ class OidcTokenValidator:
         self._cache = JwksCache()
         self._get_json = get_json or self._default_get_json
         self._jwks_url = config.jwks_url
+        self._refresh_lock = threading.Lock()
 
     @staticmethod
     def _default_get_json(url: str, timeout_seconds: float = 5.0) -> dict[str, Any]:
@@ -93,7 +94,11 @@ class OidcTokenValidator:
         if key is not None:
             return key
 
-        self._refresh_jwks()
+        with self._refresh_lock:
+            key = self._cache.get(kid)
+            if key is not None:
+                return key
+            self._refresh_jwks()
         key = self._cache.get(kid)
         if key is None:
             raise ValueError(INVALID_TOKEN_MESSAGE)
@@ -130,6 +135,8 @@ def _extract_scopes(claims: dict[str, Any]) -> list[str]:
     scope_value = claims.get("scope")
     if isinstance(scope_value, str):
         return [scope for scope in scope_value.split() if scope]
+    if isinstance(scope_value, list):
+        return [str(scope) for scope in scope_value if str(scope).strip()]
 
     scp_value = claims.get("scp")
     if isinstance(scp_value, list):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from typing import Any
 from urllib.parse import urlunsplit
@@ -292,3 +293,59 @@ async def test_verify_token_offloads_sync_validation(monkeypatch: pytest.MonkeyP
     assert token is not None
     assert token.client_id == "memoria-client"
     assert called == {"offloaded": True, "token": "token-1"}
+
+
+@pytest.mark.asyncio
+async def test_verify_token_accepts_scope_claim_as_list() -> None:
+    class ListScopeValidator:
+        def validate(self, token: str) -> dict[str, Any]:
+            return {
+                "sub": "alice-id",
+                "azp": "memoria-client",
+                "scope": ["read", "write"],
+                "exp": int(time.time()) + 60,
+            }
+
+    verifier = OidcTokenVerifier(ListScopeValidator(), required_scopes=["read"], base_url="http://localhost:8080")
+
+    token = await verifier.verify_token("token-1")
+
+    assert token is not None
+    assert token.scopes == ["read", "write"]
+
+
+def test_validate_token_refreshes_jwks_once_for_concurrent_unknown_kid() -> None:
+    private_key, public_key = _make_rsa_keypair()
+    issuer = _http_url("keycloak:8080", "/realms/memoria")
+    kid = "concurrent-kid"
+    calls = {"jwks": 0}
+
+    def fake_get_json(url: str, timeout_seconds: float = 5.0) -> dict[str, Any]:
+        if url.endswith("/.well-known/openid-configuration"):
+            return {"jwks_uri": f"{issuer}/protocol/openid-connect/certs"}
+        calls["jwks"] += 1
+        time.sleep(0.05)
+        return {"keys": [_jwk_from_public_key(public_key, kid)]}
+
+    validator = OidcTokenValidator(
+        OidcConfig(issuer_url=issuer, audience="memoria-mcp", subject_claim="sub", jwks_ttl_seconds=300),
+        get_json=fake_get_json,
+    )
+    token = jwt.encode(
+        {
+            "iss": issuer,
+            "aud": "memoria-mcp",
+            "sub": "alice-id",
+            "exp": int(time.time()) + 600,
+        },
+        private_key,
+        algorithm="RS256",
+        headers={"kid": kid},
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(validator.validate, token) for _ in range(2)]
+        results = [future.result() for future in futures]
+
+    assert [result["sub"] for result in results] == ["alice-id", "alice-id"]
+    assert calls["jwks"] == 1
