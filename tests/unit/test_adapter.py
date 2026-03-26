@@ -46,7 +46,6 @@ def test_build_config_raises_when_graph_credentials_missing() -> None:
 
 def test_build_config_uses_split_api_keys_when_provided() -> None:
     settings = Settings(
-        mem0_api_key="common-key",
         mem0_llm_api_key="llm-key",
         mem0_embedder_api_key="embedder-key",
     )
@@ -58,18 +57,14 @@ def test_build_config_uses_split_api_keys_when_provided() -> None:
     assert config["embedder"]["config"]["api_key"] == "embedder-key"
 
 
-def test_build_config_falls_back_to_common_api_key() -> None:
-    settings = Settings(
-        mem0_api_key="common-key",
-        mem0_llm_api_key=None,
-        mem0_embedder_api_key=None,
-    )
+def test_build_config_uses_default_dummy_api_keys() -> None:
+    settings = Settings()
     adapter = Mem0Adapter(settings)
 
     config = adapter._build_config()
 
-    assert config["llm"]["config"]["api_key"] == "common-key"
-    assert config["embedder"]["config"]["api_key"] == "common-key"
+    assert config["llm"]["config"]["api_key"] == "dummy"
+    assert config["embedder"]["config"]["api_key"] == "dummy"
 
 
 def test_build_config_omits_empty_base_urls() -> None:

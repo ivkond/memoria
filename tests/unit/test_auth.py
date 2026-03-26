@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from fastmcp.server.auth import AccessToken
 from fastmcp.server.middleware.middleware import MiddlewareContext
 from starlette.requests import Request
 
-from memoria.auth import USER_ID_STATE_KEY, UserHeaderMiddleware, require_user_id
+import memoria.auth as auth_module
+from memoria.auth import (
+    USER_ID_STATE_KEY,
+    OidcBearerMiddleware,
+    UserHeaderMiddleware,
+    require_user_id,
+)
 
 
 def _request_with_headers(headers: dict[str, str]) -> Request:
@@ -53,6 +61,14 @@ class MissingSessionStateContext:
             "session_id is not available because no session exists. "
             "This typically means you're outside a request context."
         )
+
+
+class FakeTokenValidator:
+    def __init__(self, claims: dict[str, Any]) -> None:
+        self._claims = claims
+
+    def validate(self, token: str) -> dict[str, Any]:
+        return self._claims
 
 
 @pytest.mark.asyncio
@@ -104,6 +120,19 @@ async def test_require_user_id_falls_back_when_context_state_requires_session(
     )
 
     assert await require_user_id(context, "x-user-id") == "header-user"
+
+
+@pytest.mark.asyncio
+async def test_require_user_id_does_not_fallback_to_header_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = MissingSessionStateContext()
+    monkeypatch.setattr(
+        "memoria.auth.get_http_request",
+        lambda: _request_with_headers({"x-user-id": "legacy-user"}),
+    )
+    with pytest.raises(ValueError, match="missing authenticated user"):
+        await require_user_id(context, "x-user-id", allow_header_fallback=False)
 
 
 @pytest.mark.asyncio
@@ -180,4 +209,185 @@ async def test_user_header_middleware_fails_without_header(monkeypatch: pytest.M
         return "ok"
 
     with pytest.raises(ValueError, match="x-user-id"):
+        await middleware.on_call_tool(mw_context, call_next)
+
+
+@pytest.mark.asyncio
+async def test_oidc_middleware_sets_user_id_from_sub(monkeypatch: pytest.MonkeyPatch) -> None:
+    middleware = OidcBearerMiddleware(
+        token_validator=FakeTokenValidator({"preferred_username": "alice-id"}),
+        subject_claim="preferred_username",
+    )
+    context = AsyncStateContext()
+    mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
+    monkeypatch.setattr(
+        "memoria.auth.get_http_request",
+        lambda: _request_with_headers({"authorization": "Bearer token-1"}),
+    )
+
+    async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    result = await middleware.on_call_tool(mw_context, call_next)
+
+    assert result == "ok"
+    assert await context.get_state(USER_ID_STATE_KEY) == "alice-id"
+
+
+@pytest.mark.asyncio
+async def test_oidc_middleware_rejects_missing_bearer(monkeypatch: pytest.MonkeyPatch) -> None:
+    middleware = OidcBearerMiddleware(token_validator=FakeTokenValidator({"sub": "alice-id"}))
+    mw_context = MiddlewareContext(message=object(), fastmcp_context=AsyncStateContext(), method="tools/call")
+    monkeypatch.setattr("memoria.auth.get_http_request", lambda: _request_with_headers({}))
+
+    async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    with pytest.raises(ValueError, match="missing bearer token"):
+        await middleware.on_call_tool(mw_context, call_next)
+
+
+@pytest.mark.asyncio
+async def test_oidc_middleware_offloads_token_validation(monkeypatch: pytest.MonkeyPatch) -> None:
+    called: dict[str, Any] = {}
+
+    class ThreadAwareValidator:
+        def validate(self, token: str) -> dict[str, str]:
+            called["token"] = token
+            return {"sub": "alice-id"}
+
+    async def fake_to_thread(func: Any, /, *args: Any, **kwargs: Any) -> Any:
+        called["offloaded"] = True
+        return func(*args, **kwargs)
+
+    middleware = OidcBearerMiddleware(token_validator=ThreadAwareValidator())
+    context = AsyncStateContext()
+    mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
+    monkeypatch.setattr(
+        "memoria.auth.get_http_request",
+        lambda: _request_with_headers({"authorization": "Bearer token-1"}),
+    )
+    monkeypatch.setattr(auth_module, "asyncio", SimpleNamespace(to_thread=fake_to_thread), raising=False)
+
+    async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    result = await middleware.on_call_tool(mw_context, call_next)
+
+    assert result == "ok"
+    assert called == {"offloaded": True, "token": "token-1"}
+
+
+@pytest.mark.asyncio
+async def test_oidc_middleware_prefers_existing_auth_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FailingValidator:
+        def validate(self, token: str) -> dict[str, str]:
+            raise AssertionError("validator should not run when auth context already has claims")
+
+    middleware = OidcBearerMiddleware(token_validator=FailingValidator())
+    context = AsyncStateContext()
+    mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
+    monkeypatch.setattr(
+        "memoria.auth.get_http_request",
+        lambda: _request_with_headers({"authorization": "Bearer token-1"}),
+    )
+    monkeypatch.setattr(
+        auth_module,
+        "get_access_token",
+        lambda: AccessToken(
+            token="token-1",
+            client_id="memoria-client",
+            scopes=["read"],
+            claims={"sub": "alice-id"},
+        ),
+        raising=False,
+    )
+
+    async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    result = await middleware.on_call_tool(mw_context, call_next)
+
+    assert result == "ok"
+    assert await context.get_state(USER_ID_STATE_KEY) == "alice-id"
+
+
+@pytest.mark.asyncio
+async def test_oidc_middleware_falls_back_to_validator_when_auth_context_token_differs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called: dict[str, Any] = {}
+
+    class RecordingValidator:
+        def validate(self, token: str) -> dict[str, str]:
+            called["token"] = token
+            return {"sub": "bob-id"}
+
+    async def fake_to_thread(func: Any, /, *args: Any, **kwargs: Any) -> Any:
+        called["offloaded"] = True
+        return func(*args, **kwargs)
+
+    middleware = OidcBearerMiddleware(token_validator=RecordingValidator())
+    context = AsyncStateContext()
+    mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
+    monkeypatch.setattr(
+        "memoria.auth.get_http_request",
+        lambda: _request_with_headers({"authorization": "Bearer token-1"}),
+    )
+    monkeypatch.setattr(
+        auth_module,
+        "get_access_token",
+        lambda: AccessToken(
+            token="different-token",
+            client_id="memoria-client",
+            scopes=["read"],
+            claims={"sub": "alice-id"},
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(auth_module, "asyncio", SimpleNamespace(to_thread=fake_to_thread), raising=False)
+
+    async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    result = await middleware.on_call_tool(mw_context, call_next)
+
+    assert result == "ok"
+    assert await context.get_state(USER_ID_STATE_KEY) == "bob-id"
+    assert called == {"offloaded": True, "token": "token-1"}
+
+
+@pytest.mark.asyncio
+async def test_oidc_middleware_rejects_auth_context_without_subject_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    middleware = OidcBearerMiddleware(token_validator=FakeTokenValidator({"sub": "validator-user"}))
+    context = AsyncStateContext()
+    mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
+    monkeypatch.setattr(
+        "memoria.auth.get_http_request",
+        lambda: _request_with_headers({"authorization": "Bearer token-1"}),
+    )
+    monkeypatch.setattr(
+        auth_module,
+        "get_access_token",
+        lambda: AccessToken(
+            token="token-1",
+            client_id="memoria-client",
+            scopes=["read"],
+            claims={},
+        ),
+        raising=False,
+    )
+
+    async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    with pytest.raises(ValueError, match="invalid token claims"):
         await middleware.on_call_tool(mw_context, call_next)

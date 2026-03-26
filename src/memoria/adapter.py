@@ -111,7 +111,7 @@ class Mem0Adapter:
         settings = self._settings
         llm_config: dict[str, Any] = {
             "model": settings.mem0_llm_model,
-            "api_key": settings.mem0_llm_api_key or settings.mem0_api_key,
+            "api_key": settings.mem0_llm_api_key,
         }
         llm_base_url = settings.mem0_llm_base_url.strip()
         if llm_base_url:
@@ -126,7 +126,7 @@ class Mem0Adapter:
         settings = self._settings
         embedder_config: dict[str, Any] = {
             "model": settings.mem0_embedder_model,
-            "api_key": settings.mem0_embedder_api_key or settings.mem0_api_key,
+            "api_key": settings.mem0_embedder_api_key,
         }
         embedder_base_url = settings.mem0_embedder_base_url.strip()
         if embedder_base_url:

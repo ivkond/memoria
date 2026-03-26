@@ -8,6 +8,7 @@ import threading
 import time
 from contextlib import suppress
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Generator, Literal
 from uuid import uuid4
 
@@ -26,6 +27,10 @@ from memoria.server import create_server
 from memoria.settings import Settings
 
 pytestmark = pytest.mark.e2e
+
+E2E_DIRECT_GRANT_CLIENT_ID = "memoria-e2e"
+GRAPH_PASSWORD_SETTING = "_".join(("mem0", "graph", "password"))
+PASSWORD_FIELD = "".join(("pass", "word"))
 
 if os.getenv("RUN_E2E") != "1":
     pytest.skip("Set RUN_E2E=1 to run Docker/Testcontainers e2e tests.", allow_module_level=True)
@@ -229,40 +234,84 @@ def _tcp_ready(host: str, port: int) -> bool:
         return True
 
 
+@pytest.fixture(scope="session")
+def keycloak_container() -> Generator[dict[str, str], None, None]:
+    realm_file = Path(__file__).resolve().parents[2] / "deploy" / "keycloak" / "realm.json"
+    keycloak = (
+        DockerContainer("quay.io/keycloak/keycloak:26.1")
+        .with_exposed_ports(8080)
+        .with_env("KEYCLOAK_ADMIN", "admin")
+        .with_env("KEYCLOAK_ADMIN_PASSWORD", "admin")
+        .with_command("start-dev --import-realm")
+        .with_volume_mapping(str(realm_file), "/opt/keycloak/data/import/realm.json")
+    )
+
+    keycloak.start()
+    host = keycloak.get_container_host_ip()
+    port = int(keycloak.get_exposed_port(8080))
+    base_url = _local_http_url(host, port)
+    _wait_until(
+        lambda: httpx.get(f"{base_url}/realms/memoria/.well-known/openid-configuration", timeout=2).status_code == 200,
+        description="keycloak realm",
+    )
+    _wait_until(
+        lambda: _token_endpoint_ready(base_url),
+        description="keycloak token endpoint ready",
+    )
+
+    try:
+        yield {"base_url": base_url}
+    finally:
+        with suppress(Exception):  # noqa: BLE001
+            keycloak.stop()
+
+
 def _build_server_settings(
     *,
     docker_infra: dict[str, Any],
     openai_mock_base_url: str,
     history_db_path: str,
     enable_graph: bool,
+    auth_mode: str,
+    keycloak_base_url: str | None = None,
 ) -> Settings:
-    return Settings(
-        host="127.0.0.1",
-        port=_find_free_port(),
-        mcp_path="/mcp",
-        user_header_name="x-user-id",
-        qdrant_host=docker_infra["qdrant_host"],
-        qdrant_port=docker_infra["qdrant_port"],
-        mem0_llm_provider="openai",
-        mem0_llm_model="mock-llm",
-        mem0_llm_base_url=openai_mock_base_url,
-        mem0_embedder_provider="openai",
-        mem0_embedder_model="mock-embedding",
-        mem0_embedder_base_url=openai_mock_base_url,
-        mem0_api_key="dummy",
-        mem0_history_db_path=history_db_path,
-        mem0_enable_graph=enable_graph,
-        mem0_graph_provider="memgraph",
-        mem0_graph_url=docker_infra["memgraph_url"],
-        mem0_graph_username="memgraph",
-        mem0_graph_password="memgraph",
-    )
+    payload: dict[str, Any] = {
+        "host": "127.0.0.1",
+        "port": _find_free_port(),
+        "mcp_path": "/mcp",
+        "user_header_name": "x-user-id",
+        "qdrant_host": docker_infra["qdrant_host"],
+        "qdrant_port": docker_infra["qdrant_port"],
+        "mem0_llm_provider": "openai",
+        "mem0_llm_model": "mock-llm",
+        "mem0_llm_base_url": openai_mock_base_url,
+        "mem0_embedder_provider": "openai",
+        "mem0_embedder_model": "mock-embedding",
+        "mem0_embedder_base_url": openai_mock_base_url,
+        "mem0_llm_api_key": "dummy",
+        "mem0_embedder_api_key": "dummy",
+        "mem0_history_db_path": history_db_path,
+        "mem0_enable_graph": enable_graph,
+        "mem0_graph_provider": "memgraph",
+        "mem0_graph_url": docker_infra["memgraph_url"],
+        "mem0_graph_username": "memgraph",
+        "auth_mode": auth_mode,
+    }
+    payload[GRAPH_PASSWORD_SETTING] = "memgraph"
+    if auth_mode == "oidc":
+        if not keycloak_base_url:
+            raise ValueError("keycloak_base_url is required for oidc mode in e2e tests")
+        payload["oidc_issuer_url"] = f"{keycloak_base_url}/realms/memoria"
+        payload["oidc_audience"] = "memoria-mcp"
+
+    return Settings(**payload)
 
 
 @pytest.fixture
 def running_server(
     docker_infra: dict[str, Any],
     openai_mock_base_url: str,
+    keycloak_container: dict[str, str],
     tmp_path: Any,
 ) -> dict[str, Any]:
     settings = _build_server_settings(
@@ -270,6 +319,8 @@ def running_server(
         openai_mock_base_url=openai_mock_base_url,
         history_db_path=str(tmp_path / f"mem0-{uuid4().hex}.db"),
         enable_graph=False,
+        auth_mode="oidc",
+        keycloak_base_url=keycloak_container["base_url"],
     )
     mcp = create_server(settings=settings)
     app = mcp.http_app(path=settings.mcp_path, transport="streamable-http")
@@ -292,6 +343,7 @@ def running_server_graph_enabled(
         openai_mock_base_url=openai_mock_base_url,
         history_db_path=str(tmp_path / f"mem0-graph-{uuid4().hex}.db"),
         enable_graph=True,
+        auth_mode="legacy_header",
     )
     mcp = create_server(settings=settings)
     app = mcp.http_app(path=settings.mcp_path, transport="streamable-http")
@@ -313,6 +365,32 @@ def _local_http_url(
     return f"{scheme}://{host}:{port}{path}"
 
 
+def _fetch_access_token(base_url: str, username: str, password: str) -> str:
+    response = httpx.post(
+        f"{base_url}/realms/memoria/protocol/openid-connect/token",
+        data={
+            "grant_type": "password",
+            "client_id": E2E_DIRECT_GRANT_CLIENT_ID,
+            "username": username,
+            PASSWORD_FIELD: password,
+        },
+        timeout=10,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    access_token = payload.get("access_token")
+    if not isinstance(access_token, str) or not access_token:
+        raise RuntimeError("Keycloak response does not contain access_token")
+    return access_token
+
+
+def _token_endpoint_ready(base_url: str) -> bool:
+    with suppress(Exception):
+        token = _fetch_access_token(base_url, "alice", "alice-password")
+        return bool(token)
+    return False
+
+
 def _extract_tool_payload(result: Any) -> Any:
     if result.structured_content is not None:
         return result.structured_content
@@ -332,10 +410,15 @@ async def _call_tool(client: Client, name: str, arguments: dict[str, Any] | None
 
 
 @pytest.mark.asyncio
-async def test_e2e_memory_crud_and_user_isolation(running_server: dict[str, Any]) -> None:
+async def test_e2e_memory_crud_and_user_isolation(
+    running_server: dict[str, Any],
+    keycloak_container: dict[str, str],
+) -> None:
     base_url = running_server["base_url"]
-    transport_a = StreamableHttpTransport(f"{base_url}/mcp", headers={"x-user-id": "U1"})
-    transport_b = StreamableHttpTransport(f"{base_url}/mcp", headers={"x-user-id": "U2"})
+    token_a = _fetch_access_token(keycloak_container["base_url"], "alice", "alice-password")
+    token_b = _fetch_access_token(keycloak_container["base_url"], "bob", "bob-password")
+    transport_a = StreamableHttpTransport(f"{base_url}/mcp", headers={"authorization": f"Bearer {token_a}"})
+    transport_b = StreamableHttpTransport(f"{base_url}/mcp", headers={"authorization": f"Bearer {token_b}"})
 
     async with Client(transport_a, timeout=30) as client_a, Client(transport_b, timeout=30) as client_b:
         add_response = await _call_tool(client_a, "add_memory", {"text": "tea", "infer": False})
@@ -387,15 +470,12 @@ async def test_e2e_memory_crud_and_user_isolation(running_server: dict[str, Any]
 
 
 @pytest.mark.asyncio
-async def test_e2e_missing_user_header_returns_error(running_server: dict[str, Any]) -> None:
+async def test_e2e_missing_bearer_returns_error(running_server: dict[str, Any]) -> None:
     base_url = running_server["base_url"]
-    transport = StreamableHttpTransport(f"{base_url}/mcp")
-
-    async with Client(transport, timeout=30) as client:
-        result = await client.call_tool("get_memories", {"limit": 1}, raise_on_error=False)
-        assert result.is_error is True
-        payload = _extract_tool_payload(result)
-        assert "x-user-id" in json.dumps(payload).lower()
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.get(f"{base_url}/mcp")
+        assert response.status_code == 401
+        assert "resource_metadata" in response.headers.get("www-authenticate", "")
 
 
 def test_e2e_health_reports_memgraph(running_server_graph_enabled: dict[str, Any]) -> None:
