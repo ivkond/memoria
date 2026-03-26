@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 from typing import Any, Awaitable, Callable
 
@@ -83,7 +84,7 @@ class OidcBearerMiddleware(Middleware):
         if not token:
             raise ValueError("missing bearer token")
 
-        claims = self._token_validator.validate(token)
+        claims = await asyncio.to_thread(self._token_validator.validate, token)
         user_id = str(claims[self._subject_claim]).strip()
         setattr(request.state, USER_ID_STATE_KEY, user_id)
 

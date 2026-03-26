@@ -4,6 +4,10 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+LLM_KEY_SENTINEL = "${MEMORIA_MEM0_LLM_API_KEY:?set MEMORIA_MEM0_LLM_API_KEY in .env or the shell environment}"
+EMBEDDER_KEY_SENTINEL = (
+    "${MEMORIA_MEM0_EMBEDDER_API_KEY:?set MEMORIA_MEM0_EMBEDDER_API_KEY in .env or the shell environment}"
+)
 
 
 def test_compose_includes_keycloak_service() -> None:
@@ -26,8 +30,8 @@ def test_env_example_lists_oidc_variables() -> None:
 
 def test_compose_requires_mem0_api_keys() -> None:
     compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
-    assert '${MEMORIA_MEM0_LLM_API_KEY:?set MEMORIA_MEM0_LLM_API_KEY in .env or the shell environment}' in compose
-    assert '${MEMORIA_MEM0_EMBEDDER_API_KEY:?set MEMORIA_MEM0_EMBEDDER_API_KEY in .env or the shell environment}' in compose
+    assert LLM_KEY_SENTINEL in compose
+    assert EMBEDDER_KEY_SENTINEL in compose
 
 
 def test_keycloak_realm_uses_pkce_for_public_client_and_separate_direct_grants_client() -> None:

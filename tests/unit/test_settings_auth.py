@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import pytest
 from urllib.parse import urlunsplit
+
+import pytest
 from pydantic import ValidationError
 
 from memoria.settings import Settings

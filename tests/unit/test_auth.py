@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from fastmcp.server.middleware.middleware import MiddlewareContext
 from starlette.requests import Request
 
+import memoria.auth as auth_module
 from memoria.auth import (
     USER_ID_STATE_KEY,
     OidcBearerMiddleware,
@@ -244,3 +246,35 @@ async def test_oidc_middleware_rejects_missing_bearer(monkeypatch: pytest.Monkey
 
     with pytest.raises(ValueError, match="missing bearer token"):
         await middleware.on_call_tool(mw_context, call_next)
+
+
+@pytest.mark.asyncio
+async def test_oidc_middleware_offloads_token_validation(monkeypatch: pytest.MonkeyPatch) -> None:
+    called: dict[str, Any] = {}
+
+    class ThreadAwareValidator:
+        def validate(self, token: str) -> dict[str, str]:
+            called["token"] = token
+            return {"sub": "alice-id"}
+
+    async def fake_to_thread(func: Any, /, *args: Any, **kwargs: Any) -> Any:
+        called["offloaded"] = True
+        return func(*args, **kwargs)
+
+    middleware = OidcBearerMiddleware(token_validator=ThreadAwareValidator())
+    context = AsyncStateContext()
+    mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
+    monkeypatch.setattr(
+        "memoria.auth.get_http_request",
+        lambda: _request_with_headers({"authorization": "Bearer token-1"}),
+    )
+    monkeypatch.setattr(auth_module, "asyncio", SimpleNamespace(to_thread=fake_to_thread), raising=False)
+
+    async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    result = await middleware.on_call_tool(mw_context, call_next)
+
+    assert result == "ok"
+    assert called == {"offloaded": True, "token": "token-1"}

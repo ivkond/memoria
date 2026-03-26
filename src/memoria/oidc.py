@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import threading
 import time
@@ -150,7 +151,7 @@ class OidcTokenVerifier(TokenVerifier):
 
     async def verify_token(self, token: str) -> AccessToken | None:
         try:
-            claims = self._token_validator.validate(token)
+            claims = await asyncio.to_thread(self._token_validator.validate, token)
         except ValueError:
             return None
 

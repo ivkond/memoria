@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import urlunsplit
 
@@ -9,7 +10,8 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt.utils import base64url_encode
 
-from memoria.oidc import OidcConfig, OidcTokenValidator
+import memoria.oidc as oidc_module
+from memoria.oidc import OidcConfig, OidcTokenValidator, OidcTokenVerifier
 
 HTTP_SCHEME = "http"
 
@@ -236,3 +238,31 @@ def test_validate_token_rejects_expired_token() -> None:
     )
     with pytest.raises(ValueError, match="invalid token"):
         validator.validate(token)
+
+
+@pytest.mark.asyncio
+async def test_verify_token_offloads_sync_validation(monkeypatch: pytest.MonkeyPatch) -> None:
+    called: dict[str, Any] = {}
+
+    class ThreadAwareValidator:
+        def validate(self, token: str) -> dict[str, Any]:
+            called["token"] = token
+            return {
+                "sub": "alice-id",
+                "azp": "memoria-client",
+                "scope": "read write",
+                "exp": int(time.time()) + 60,
+            }
+
+    async def fake_to_thread(func: Any, /, *args: Any, **kwargs: Any) -> Any:
+        called["offloaded"] = True
+        return func(*args, **kwargs)
+
+    verifier = OidcTokenVerifier(ThreadAwareValidator(), required_scopes=["read"], base_url="http://localhost:8080")
+    monkeypatch.setattr(oidc_module, "asyncio", SimpleNamespace(to_thread=fake_to_thread), raising=False)
+
+    token = await verifier.verify_token("token-1")
+
+    assert token is not None
+    assert token.client_id == "memoria-client"
+    assert called == {"offloaded": True, "token": "token-1"}
