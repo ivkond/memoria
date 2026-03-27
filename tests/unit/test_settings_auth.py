@@ -62,6 +62,11 @@ def test_settings_accepts_local_mode_configuration() -> None:
     assert settings.local_user_id == "developer"
 
 
+def test_settings_rejects_blank_local_user_id_in_local_mode() -> None:
+    with pytest.raises(ValidationError, match="MEMORIA_LOCAL_USER_ID must be non-empty"):
+        Settings(auth_mode="local", local_user_id="   ")
+
+
 def test_settings_accepts_oidc_mode_configuration() -> None:
     settings = Settings(
         auth_mode="oidc",

@@ -73,6 +73,8 @@ class Settings(BaseSettings):
                 "MEMORIA_MEM0_API_KEY has been removed. "
                 "Use MEMORIA_MEM0_LLM_API_KEY and MEMORIA_MEM0_EMBEDDER_API_KEY instead."
             )
+        if self.auth_mode == "local" and not self.local_user_id.strip():
+            raise ValueError("MEMORIA_LOCAL_USER_ID must be non-empty when MEMORIA_AUTH_MODE=local.")
         if self.auth_mode == "oidc":
             if not self.oidc_issuer_url:
                 raise ValueError("MEMORIA_OIDC_ISSUER_URL is required when MEMORIA_AUTH_MODE=oidc.")

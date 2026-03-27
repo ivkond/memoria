@@ -11,8 +11,8 @@ from starlette.requests import Request
 
 import memoria.auth as auth_module
 from memoria.auth import (
-    LocalUserMiddleware,
     USER_ID_STATE_KEY,
+    LocalUserMiddleware,
     OidcBearerMiddleware,
     UserHeaderMiddleware,
     require_user_id,
