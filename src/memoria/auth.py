@@ -43,6 +43,10 @@ async def _store_user_id_in_state(ctx: Any, user_id: str) -> None:
             raise
 
 
+def _store_user_id_in_request_state(request: Any, user_id: str) -> None:
+    setattr(request.state, USER_ID_STATE_KEY, user_id)
+
+
 class UserHeaderMiddleware(Middleware):
     def __init__(self, header_name: str):
         self._header_name = header_name.lower()
@@ -60,8 +64,27 @@ class UserHeaderMiddleware(Middleware):
                 "Pass this header in MCP server connection settings."
             )
 
+        _store_user_id_in_request_state(request, user_id.strip())
         if context.fastmcp_context is not None:
             await _store_user_id_in_state(context.fastmcp_context, user_id.strip())
+
+        return await call_next(context)
+
+
+class LocalUserMiddleware(Middleware):
+    def __init__(self, user_id: str):
+        self._user_id = user_id.strip()
+
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext[Any],
+        call_next: Callable[[MiddlewareContext[Any]], Awaitable[Any]],
+    ) -> Any:
+        request = get_http_request()
+        _store_user_id_in_request_state(request, self._user_id)
+
+        if context.fastmcp_context is not None:
+            await _store_user_id_in_state(context.fastmcp_context, self._user_id)
 
         return await call_next(context)
 
@@ -104,7 +127,7 @@ class OidcBearerMiddleware(Middleware):
         if claims is None:
             claims = await asyncio.to_thread(self._token_validator.validate, token)
         user_id = self._user_id_from_claims(claims)
-        setattr(request.state, USER_ID_STATE_KEY, user_id)
+        _store_user_id_in_request_state(request, user_id)
 
         if context.fastmcp_context is not None:
             await _store_user_id_in_state(context.fastmcp_context, user_id)

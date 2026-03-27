@@ -13,7 +13,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from memoria.adapter import Mem0Adapter, MemoryAdapter
-from memoria.auth import OidcBearerMiddleware, UserHeaderMiddleware, require_user_id
+from memoria.auth import LocalUserMiddleware, OidcBearerMiddleware, UserHeaderMiddleware, require_user_id
 from memoria.health import HealthChecker
 from memoria.oidc import OidcConfig, OidcTokenValidator, OidcTokenVerifier
 from memoria.service import MemoryService
@@ -39,6 +39,10 @@ async def _require_tool_user_id(
 
 def _memory_id_field() -> Any:
     return Field(description=MEMORY_ID_DESCRIPTION)
+
+
+def _allow_header_fallback(settings: Settings) -> bool:
+    return settings.auth_mode == "stub_auth"
 
 
 def _normalized_mcp_path(raw_path: str) -> str:
@@ -244,7 +248,7 @@ def _register_memory_tools(
         user_id = await _require_tool_user_id(
             ctx,
             app_settings.user_header_name,
-            allow_header_fallback=app_settings.auth_mode == "legacy_header",
+            allow_header_fallback=_allow_header_fallback(app_settings),
         )
         return service.add_memory(
             user_id=user_id,
@@ -268,7 +272,7 @@ def _register_memory_tools(
         user_id = await _require_tool_user_id(
             ctx,
             app_settings.user_header_name,
-            allow_header_fallback=app_settings.auth_mode == "legacy_header",
+            allow_header_fallback=_allow_header_fallback(app_settings),
         )
         return service.search_memories(
             user_id=user_id,
@@ -287,7 +291,7 @@ def _register_memory_tools(
         user_id = await _require_tool_user_id(
             ctx,
             app_settings.user_header_name,
-            allow_header_fallback=app_settings.auth_mode == "legacy_header",
+            allow_header_fallback=_allow_header_fallback(app_settings),
         )
         return service.get_memory(user_id=user_id, memory_id=memory_id)
 
@@ -300,7 +304,7 @@ def _register_memory_tools(
         user_id = await _require_tool_user_id(
             ctx,
             app_settings.user_header_name,
-            allow_header_fallback=app_settings.auth_mode == "legacy_header",
+            allow_header_fallback=_allow_header_fallback(app_settings),
         )
         return service.get_memories(user_id=user_id, limit=limit, filters=filters)
 
@@ -313,7 +317,7 @@ def _register_memory_tools(
         user_id = await _require_tool_user_id(
             ctx,
             app_settings.user_header_name,
-            allow_header_fallback=app_settings.auth_mode == "legacy_header",
+            allow_header_fallback=_allow_header_fallback(app_settings),
         )
         return service.update_memory(user_id=user_id, memory_id=memory_id, data=data)
 
@@ -325,7 +329,7 @@ def _register_memory_tools(
         user_id = await _require_tool_user_id(
             ctx,
             app_settings.user_header_name,
-            allow_header_fallback=app_settings.auth_mode == "legacy_header",
+            allow_header_fallback=_allow_header_fallback(app_settings),
         )
         return service.delete_memory(user_id=user_id, memory_id=memory_id)
 
@@ -334,7 +338,7 @@ def _register_memory_tools(
         user_id = await _require_tool_user_id(
             ctx,
             app_settings.user_header_name,
-            allow_header_fallback=app_settings.auth_mode == "legacy_header",
+            allow_header_fallback=_allow_header_fallback(app_settings),
         )
         return service.delete_all_memories(user_id=user_id)
 
@@ -351,7 +355,7 @@ def _register_memory_tools(
         user_id = await _require_tool_user_id(
             ctx,
             app_settings.user_header_name,
-            allow_header_fallback=app_settings.auth_mode == "legacy_header",
+            allow_header_fallback=_allow_header_fallback(app_settings),
         )
         return service.list_entities(user_id=user_id, limit=limit)
 
@@ -365,7 +369,7 @@ def _register_memory_tools(
         user_id = await _require_tool_user_id(
             ctx,
             app_settings.user_header_name,
-            allow_header_fallback=app_settings.auth_mode == "legacy_header",
+            allow_header_fallback=_allow_header_fallback(app_settings),
         )
         response = service.delete_entities(user_id=user_id)
         return response.model_dump()
@@ -378,6 +382,8 @@ def _build_middlewares(
     if settings.auth_mode == "oidc":
         token_validator = validator or _build_oidc_validator(settings)
         return [OidcBearerMiddleware(token_validator=token_validator, subject_claim=settings.oidc_subject_claim)]
+    if settings.auth_mode == "local":
+        return [LocalUserMiddleware(settings.local_user_id)]
     return [UserHeaderMiddleware(settings.user_header_name)]
 
 
@@ -398,7 +404,8 @@ def create_server(
         instructions=(
             "Standalone MCP server for mem0-backed user memory. "
             "In OIDC mode every tool call requires a valid bearer token and scopes data to that user. "
-            "Legacy x-user-id header mode is temporary and should only be used behind a trusted boundary."
+            "Stub auth x-user-id header mode is temporary and should only be used behind a trusted boundary. "
+            "Local mode uses a fixed configured user id for local development only."
         ),
         auth=auth_provider,
         middleware=_build_middlewares(app_settings, validator=oidc_validator),
