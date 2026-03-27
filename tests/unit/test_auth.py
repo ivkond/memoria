@@ -11,6 +11,7 @@ from starlette.requests import Request
 
 import memoria.auth as auth_module
 from memoria.auth import (
+    LocalUserMiddleware,
     USER_ID_STATE_KEY,
     OidcBearerMiddleware,
     UserHeaderMiddleware,
@@ -136,6 +137,18 @@ async def test_require_user_id_does_not_fallback_to_header_when_disabled(
 
 
 @pytest.mark.asyncio
+async def test_require_user_id_reads_request_state_user_without_header_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = MissingSessionStateContext()
+    request = _request_with_headers({})
+    setattr(request.state, USER_ID_STATE_KEY, "local-user")
+    monkeypatch.setattr("memoria.auth.get_http_request", lambda: request)
+
+    assert await require_user_id(context, "x-user-id", allow_header_fallback=False) == "local-user"
+
+
+@pytest.mark.asyncio
 async def test_user_header_middleware_sets_context_state(monkeypatch: pytest.MonkeyPatch) -> None:
     middleware = UserHeaderMiddleware("x-user-id")
     context = AsyncStateContext()
@@ -210,6 +223,27 @@ async def test_user_header_middleware_fails_without_header(monkeypatch: pytest.M
 
     with pytest.raises(ValueError, match="x-user-id"):
         await middleware.on_call_tool(mw_context, call_next)
+
+
+@pytest.mark.asyncio
+async def test_local_user_middleware_sets_context_and_request_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    middleware = LocalUserMiddleware("developer")
+    context = AsyncStateContext()
+    mw_context = MiddlewareContext(message=object(), fastmcp_context=context, method="tools/call")
+    request = _request_with_headers({})
+    monkeypatch.setattr("memoria.auth.get_http_request", lambda: request)
+
+    async def call_next(_: MiddlewareContext[object]) -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    result = await middleware.on_call_tool(mw_context, call_next)
+
+    assert result == "ok"
+    assert await context.get_state(USER_ID_STATE_KEY) == "developer"
+    assert getattr(request.state, USER_ID_STATE_KEY) == "developer"
 
 
 @pytest.mark.asyncio

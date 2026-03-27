@@ -18,6 +18,7 @@ def _http_url(authority: str, path: str = "") -> str:
 def _clean_memoria_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in (
         "MEMORIA_AUTH_MODE",
+        "MEMORIA_LOCAL_USER_ID",
         "MEMORIA_OIDC_ISSUER_URL",
         "MEMORIA_OIDC_AUDIENCE",
         "MEMORIA_OIDC_SUBJECT_CLAIM",
@@ -28,9 +29,9 @@ def _clean_memoria_env(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(key, raising=False)
 
 
-def test_settings_accepts_legacy_mode_defaults() -> None:
-    settings = Settings(auth_mode="legacy_header")
-    assert settings.auth_mode == "legacy_header"
+def test_settings_accepts_stub_auth_mode() -> None:
+    settings = Settings(auth_mode="stub_auth")
+    assert settings.auth_mode == "stub_auth"
 
 
 def test_settings_require_oidc_fields_in_oidc_mode() -> None:
@@ -49,9 +50,16 @@ def test_settings_accepts_oidc_mode_with_required_fields() -> None:
     assert settings.oidc_jwks_cache_ttl_seconds == 300
 
 
-def test_settings_default_auth_mode_is_legacy_header() -> None:
+def test_settings_default_auth_mode_is_local() -> None:
     settings = Settings()
-    assert settings.auth_mode == "legacy_header"
+    assert settings.auth_mode == "local"
+    assert settings.local_user_id == "local-user"
+
+
+def test_settings_accepts_local_mode_configuration() -> None:
+    settings = Settings(auth_mode="local", local_user_id="developer")
+    assert settings.auth_mode == "local"
+    assert settings.local_user_id == "developer"
 
 
 def test_settings_accepts_oidc_mode_configuration() -> None:

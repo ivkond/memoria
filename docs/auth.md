@@ -1,11 +1,12 @@
 # Authentication and OAuth Notes
 
-Memoria supports two authentication modes:
+Memoria supports three authentication modes:
 
+- `local`: skips client authentication and always uses a fixed configured user id for local development
 - `oidc`: validates bearer tokens and derives user identity from a JWT claim such as `sub`
-- `legacy_header`: trusts an upstream proxy or gateway to inject a user header such as `x-user-id`
+- `stub_auth`: trusts an upstream proxy or gateway to inject a user header such as `x-user-id`
 
-For production deployments, prefer `oidc`. Use `legacy_header` only behind a trusted boundary or during migration.
+For production deployments, prefer `oidc`. Use `local` only on a developer workstation. Use `stub_auth` only behind a trusted boundary or during migration.
 
 ## OIDC Metadata Layout
 
@@ -42,6 +43,10 @@ For the bundled local profile:
 
 Production realm imports should remove that client or disable direct access grants.
 
-## `legacy_header` Mode
+## `local` Mode
 
-In `legacy_header` mode, the configured header is an identity input, not authentication. Anyone who can send that header can impersonate a user unless a trusted proxy strips and rewrites it first.
+In `local` mode, Memoria does not authenticate the client at all. Every tool call runs as the configured `MEMORIA_LOCAL_USER_ID` value (default `local-user`), so the mode is appropriate only for local development and smoke testing.
+
+## `stub_auth` Mode
+
+In `stub_auth` mode, the configured header is an identity input, not authentication. Anyone who can send that header can impersonate a user unless a trusted proxy strips and rewrites it first.

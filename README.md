@@ -79,7 +79,22 @@ For local Keycloak profile, issuer is `http://localhost:18081/realms/memoria`.
 
 OAuth metadata layout, the fact that `/oauth/register` does not persist dynamic client registration, loopback redirect constraints, RS256/Keycloak assumptions, and other auth details are documented in [docs/auth.md](docs/auth.md).
 
-### `legacy_header` mode
+### `local` mode
+
+This is the default for local development. In local mode Memoria skips client authentication entirely and scopes all tools to a fixed configured user id (`MEMORIA_LOCAL_USER_ID`, default `local-user`).
+
+```json
+{
+  "mcpServers": {
+    "memoria": {
+      "type": "streamable-http",
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
+### `stub_auth` mode
 
 Use this only behind a trusted auth proxy or during migration. In this mode the client passes user identity via `x-user-id` instead of a bearer token.
 
@@ -101,7 +116,9 @@ Use this only behind a trusted auth proxy or during migration. In this mode the 
 
 In `oidc` mode, identity is derived from validated JWT claims (`sub` by default).
 
-`legacy_header` mode remains available for migration only. In this mode `x-user-id` is an identity input, not authentication, and should be used only behind a trusted auth proxy/gateway.
+In `local` mode, Memoria does not authenticate the client and always uses `MEMORIA_LOCAL_USER_ID`. Use it only for local development.
+
+`stub_auth` mode remains available for migration only. In this mode `x-user-id` is an identity input, not authentication, and should be used only behind a trusted auth proxy/gateway.
 
 Local Keycloak realm note:
 - `deploy/keycloak/realm.json` includes a `memoria-e2e` client with direct access grants enabled for local-test only automation.
@@ -109,7 +126,7 @@ Local Keycloak realm note:
 
 ## 🧰 MCP Tools
 
-All tools are scoped to the current user identity from the bearer token or `x-user-id` header.
+All tools are scoped to the current user identity from the bearer token, the configured local user id, or the `x-user-id` header depending on auth mode.
 
 | Tool | Required args | What it does | Returns |
 | --- | --- | --- | --- |
@@ -147,8 +164,9 @@ Start from [.env.example](.env.example). Most local setups only need auth mode, 
 | `MEMORIA_PORT` | `8080` | no | Bind port for the HTTP server |
 | `MEMORIA_MCP_PATH` | `/mcp` | no | MCP endpoint path |
 | `MEMORIA_PUBLIC_BASE_URL` | `http://localhost:8080` | no | Public base URL used in advertised MCP/OAuth metadata |
-| `MEMORIA_AUTH_MODE` | `legacy_header` | no | Auth mode: `legacy_header` or `oidc` |
-| `MEMORIA_USER_HEADER_NAME` | `x-user-id` | no | Identity header used in `legacy_header` mode |
+| `MEMORIA_AUTH_MODE` | `local` | no | Auth mode: `local`, `stub_auth`, or `oidc` |
+| `MEMORIA_LOCAL_USER_ID` | `local-user` | no | Fixed user id used in `local` mode |
+| `MEMORIA_USER_HEADER_NAME` | `x-user-id` | no | Identity header used in `stub_auth` mode |
 | `MEMORIA_OIDC_ISSUER_URL` | none | in `oidc` mode | Expected token issuer and default upstream OIDC issuer |
 | `MEMORIA_OIDC_PUBLIC_ISSUER_URL` | none | no | Browser-facing issuer for advertised OAuth endpoints |
 | `MEMORIA_OIDC_JWKS_URL` | none | no | Optional internal JWKS URL for server-side verification |

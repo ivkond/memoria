@@ -343,7 +343,7 @@ def running_server_graph_enabled(
         openai_mock_base_url=openai_mock_base_url,
         history_db_path=str(tmp_path / f"mem0-graph-{uuid4().hex}.db"),
         enable_graph=True,
-        auth_mode="legacy_header",
+        auth_mode="stub_auth",
     )
     mcp = create_server(settings=settings)
     app = mcp.http_app(path=settings.mcp_path, transport="streamable-http")

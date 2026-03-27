@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     port: int = 8080
     mcp_path: str = "/mcp"
     public_base_url: str | None = None
-    auth_mode: Literal["legacy_header", "oidc"] = "legacy_header"
+    auth_mode: Literal["local", "stub_auth", "oidc"] = "local"
+    local_user_id: str = "local-user"
     user_header_name: str = "x-user-id"
     oidc_issuer_url: str | None = None
     oidc_public_issuer_url: str | None = None
