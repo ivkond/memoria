@@ -150,7 +150,7 @@ def test_add_memory_wraps_httpx_connectivity_errors(error: Exception) -> None:
         adapter.add_memory([{"role": "user", "content": "hello"}], user_id="U1")
 
 
-def test_patch_ssl_verify_replaces_openai_clients() -> None:
+def test_apply_ssl_override_replaces_openai_clients() -> None:
     class FakeEmbedder:
         client = OpenAI(api_key="emb-key", base_url="https://emb.local/v1")
 
@@ -162,7 +162,7 @@ def test_patch_ssl_verify_replaces_openai_clients() -> None:
         embedding_model = FakeEmbedder()
 
     memory = FakeMemory()
-    Mem0Adapter._patch_ssl_verify(memory)  # type: ignore[arg-type]
+    Mem0Adapter._apply_ssl_override(memory, verify=False)  # type: ignore[arg-type]
 
     assert memory.llm.client.api_key == "llm-key"
     assert str(memory.llm.client.base_url) == "https://llm.local/v1/"
@@ -173,7 +173,7 @@ def test_patch_ssl_verify_replaces_openai_clients() -> None:
     assert memory.embedding_model.client._client._transport._pool._ssl_context.verify_mode.name == "CERT_NONE"
 
 
-def test_patch_ssl_verify_skips_non_openai_client() -> None:
+def test_apply_ssl_override_skips_non_openai_client() -> None:
     class CustomClient:
         pass
 
@@ -186,45 +186,46 @@ def test_patch_ssl_verify_skips_non_openai_client() -> None:
 
     memory = FakeMemory()
     original_client = memory.llm.client
-    Mem0Adapter._patch_ssl_verify(memory)  # type: ignore[arg-type]
+    Mem0Adapter._apply_ssl_override(memory, verify=False)  # type: ignore[arg-type]
 
     assert memory.llm.client is original_client
 
 
-def test_memory_property_calls_patch_when_ssl_verify_false(monkeypatch: pytest.MonkeyPatch) -> None:
-    patched_calls: list[object] = []
+def test_memory_property_calls_ssl_override_when_ssl_verify_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    override_calls: list[tuple[object, bool]] = []
 
     def fake_from_config(_config: object) -> object:
         return object()
 
-    def fake_patch(memory: object) -> None:
-        patched_calls.append(memory)
+    def fake_override(memory: object, *, verify: bool) -> None:
+        override_calls.append((memory, verify))
 
     monkeypatch.setattr("memoria.adapter.Memory.from_config", fake_from_config)
-    monkeypatch.setattr(Mem0Adapter, "_patch_ssl_verify", staticmethod(fake_patch))
+    monkeypatch.setattr(Mem0Adapter, "_apply_ssl_override", staticmethod(fake_override))
 
     adapter = Mem0Adapter(Settings(ssl_verify=False))
     _ = adapter.memory
 
-    assert len(patched_calls) == 1
+    assert len(override_calls) == 1
+    assert override_calls[0][1] is False
 
 
-def test_memory_property_skips_patch_when_ssl_verify_true(monkeypatch: pytest.MonkeyPatch) -> None:
-    patched_calls: list[object] = []
+def test_memory_property_skips_ssl_override_when_ssl_verify_true(monkeypatch: pytest.MonkeyPatch) -> None:
+    override_calls: list[tuple[object, bool]] = []
 
     def fake_from_config(_config: object) -> object:
         return object()
 
-    def fake_patch(memory: object) -> None:
-        patched_calls.append(memory)
+    def fake_override(memory: object, *, verify: bool) -> None:
+        override_calls.append((memory, verify))
 
     monkeypatch.setattr("memoria.adapter.Memory.from_config", fake_from_config)
-    monkeypatch.setattr(Mem0Adapter, "_patch_ssl_verify", staticmethod(fake_patch))
+    monkeypatch.setattr(Mem0Adapter, "_apply_ssl_override", staticmethod(fake_override))
 
     adapter = Mem0Adapter(Settings(ssl_verify=True))
     _ = adapter.memory
 
-    assert len(patched_calls) == 0
+    assert len(override_calls) == 0
 
 
 def test_memory_property_initializes_single_instance_under_concurrency(monkeypatch: pytest.MonkeyPatch) -> None:

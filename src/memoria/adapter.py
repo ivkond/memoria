@@ -80,7 +80,7 @@ class Mem0Adapter:
                 if self._memory is None:
                     instance = Memory.from_config(self._build_config())
                     if not self._settings.ssl_verify:
-                        self._patch_ssl_verify(instance)
+                        self._apply_ssl_override(instance, verify=self._settings.ssl_verify)
                     self._memory = instance
                 memory = self._memory
         if memory is None:
@@ -88,8 +88,8 @@ class Mem0Adapter:
         return memory
 
     @staticmethod
-    def _patch_ssl_verify(memory: Memory) -> None:
-        http_client = httpx.Client(verify=False)  # nosec B501
+    def _apply_ssl_override(memory: Memory, *, verify: bool) -> None:
+        http_client = httpx.Client(verify=verify)
         for attr_name in ("llm", "embedding_model"):
             component = getattr(memory, attr_name, None)
             if component is None:
@@ -102,7 +102,7 @@ class Mem0Adapter:
                 base_url=str(client.base_url),
                 http_client=http_client,
             )
-            LOGGER.info("Patched %s OpenAI client with ssl_verify=False", attr_name)
+            LOGGER.info("Patched %s OpenAI client with ssl verify=%s", attr_name, verify)
 
     @staticmethod
     def _is_connectivity_error(error: Exception) -> bool:
