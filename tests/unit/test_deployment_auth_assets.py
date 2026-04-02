@@ -23,7 +23,8 @@ def test_compose_includes_keycloak_service() -> None:
 
 def test_env_example_lists_oidc_variables() -> None:
     env_example = (ROOT / ".env.example").read_text(encoding="utf-8")
-    assert "MEMORIA_AUTH_MODE=" in env_example
+    assert "MEMORIA_AUTH_MODE=local" in env_example
+    assert "MEMORIA_LOCAL_USER_ID=local-user" in env_example
     assert "MEMORIA_OIDC_ISSUER_URL=" in env_example
     assert "MEMORIA_OIDC_AUDIENCE=" in env_example
 
@@ -65,3 +66,5 @@ def test_readme_calls_out_mcp_metadata_and_test_only_e2e_client() -> None:
     assert "does not persist dynamic client registration" in readme
     assert "loopback" in readme
     assert "rs256" in readme
+    assert "stub_auth" in readme
+    assert "local mode" in readme

@@ -60,11 +60,40 @@ async def test_require_tool_user_id_disables_header_fallback_in_oidc(monkeypatch
     assert result == "user-from-token"
 
 
-def test_build_middlewares_uses_legacy_header_mode() -> None:
-    settings = Settings(auth_mode="legacy_header")
+@pytest.mark.asyncio
+async def test_require_tool_user_id_disables_header_fallback_in_local_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_require_user_id(
+        ctx: object,
+        header_name: str,
+        *,
+        allow_header_fallback: bool = True,
+    ) -> str:
+        await asyncio.sleep(0)
+        assert ctx == "ctx"
+        assert header_name == "x-user-id"
+        assert allow_header_fallback is False
+        return "local-user"
+
+    monkeypatch.setattr("memoria.server.require_user_id", fake_require_user_id)
+
+    result = await server_module._require_tool_user_id("ctx", "x-user-id", allow_header_fallback=False)
+    assert result == "local-user"
+
+
+def test_build_middlewares_uses_stub_auth_mode() -> None:
+    settings = Settings(auth_mode="stub_auth")
     middlewares = server_module._build_middlewares(settings)
     assert len(middlewares) == 1
     assert type(middlewares[0]).__name__ == "UserHeaderMiddleware"
+
+
+def test_build_middlewares_uses_local_mode() -> None:
+    settings = Settings(auth_mode="local", local_user_id="developer")
+    middlewares = server_module._build_middlewares(settings)
+    assert len(middlewares) == 1
+    assert type(middlewares[0]).__name__ == "LocalUserMiddleware"
 
 
 def test_build_middlewares_uses_oidc_mode(monkeypatch: pytest.MonkeyPatch) -> None:
