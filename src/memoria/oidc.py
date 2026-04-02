@@ -46,21 +46,28 @@ class OidcTokenValidator:
         self,
         config: OidcConfig,
         get_json: Callable[[str, float], dict[str, Any]] | None = None,
+        *,
+        ssl_verify: bool = True,
     ) -> None:
         self._config = config
         self._cache = JwksCache()
-        self._get_json = get_json or self._default_get_json
+        self._ssl_verify = ssl_verify
+        self._get_json = get_json or self._make_default_get_json()
         self._jwks_url = config.jwks_url
         self._refresh_lock = threading.Lock()
 
-    @staticmethod
-    def _default_get_json(url: str, timeout_seconds: float = 5.0) -> dict[str, Any]:
-        response = httpx.get(url, timeout=timeout_seconds)
-        response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, dict):
-            raise ValueError("invalid OIDC response payload")
-        return payload
+    def _make_default_get_json(self) -> Callable[[str, float], dict[str, Any]]:
+        verify = self._ssl_verify
+
+        def _get_json(url: str, timeout_seconds: float = 5.0) -> dict[str, Any]:
+            response = httpx.get(url, timeout=timeout_seconds, verify=verify)
+            response.raise_for_status()
+            payload = response.json()
+            if not isinstance(payload, dict):
+                raise ValueError("invalid OIDC response payload")
+            return payload
+
+        return _get_json
 
     def _resolve_jwks_url(self) -> str:
         if self._jwks_url:

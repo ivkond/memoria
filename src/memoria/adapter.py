@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import threading
 from typing import Any, Callable, Protocol, TypeVar
 
+import logging
+
+import httpx
 from mem0 import Memory
+from openai import OpenAI
 
 from memoria.schemas import DeleteEntitiesResponse
 from memoria.settings import Settings
+
+LOGGER = logging.getLogger(__name__)
 
 T = TypeVar("T")
 EMBEDDER_BASE_URL_KEYS = {
@@ -64,18 +71,54 @@ class Mem0Adapter:
     def __init__(self, settings: Settings):
         self._settings = settings
         self._memory: Memory | None = None
+        self._memory_lock = threading.Lock()
 
     @property
     def memory(self) -> Memory:
-        if self._memory is None:
-            self._memory = Memory.from_config(self._build_config())
-        return self._memory
+        memory = self._memory
+        if memory is None:
+            with self._memory_lock:
+                if self._memory is None:
+                    instance = Memory.from_config(self._build_config())
+                    if not self._settings.ssl_verify:
+                        self._patch_ssl_verify(instance)
+                    self._memory = instance
+                memory = self._memory
+        if memory is None:
+            raise RuntimeError("mem0 memory adapter initialization failed")
+        return memory
+
+    @staticmethod
+    def _patch_ssl_verify(memory: Memory) -> None:
+        http_client = httpx.Client(verify=False)
+        for attr_name in ("llm", "embedding_model"):
+            component = getattr(memory, attr_name, None)
+            if component is None:
+                continue
+            client = getattr(component, "client", None)
+            if not isinstance(client, OpenAI):
+                continue
+            component.client = OpenAI(
+                api_key=client.api_key,
+                base_url=str(client.base_url),
+                http_client=http_client,
+            )
+            LOGGER.info("Patched %s OpenAI client with ssl_verify=False", attr_name)
+
+    @staticmethod
+    def _is_connectivity_error(error: Exception) -> bool:
+        if isinstance(error, (httpx.ConnectError, httpx.TimeoutException)):
+            return True
+        if error.__class__.__name__ == "APIConnectionError":
+            return True
+        nested_error = error.__cause__ or error.__context__
+        return isinstance(nested_error, Exception) and Mem0Adapter._is_connectivity_error(nested_error)
 
     def _run(self, operation: Callable[[], T]) -> T:
         try:
             return operation()
         except Exception as exc:  # noqa: BLE001
-            if exc.__class__.__name__ == "APIConnectionError":
+            if self._is_connectivity_error(exc):
                 raise RuntimeError(
                     "Cannot reach configured LLM/embedder endpoint for mem0. "
                     f"Check MEMORIA_MEM0_LLM_BASE_URL={self._settings.mem0_llm_base_url} "

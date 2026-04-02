@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Literal
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -28,6 +31,7 @@ class Settings(BaseSettings):
     oidc_subject_claim: str = "sub"
     oidc_required_scopes: str | None = None
     oidc_jwks_cache_ttl_seconds: int = 300
+    ssl_verify: bool = True
     log_level: str = "INFO"
 
     qdrant_host: str = "qdrant"
@@ -80,4 +84,22 @@ class Settings(BaseSettings):
                 raise ValueError("MEMORIA_OIDC_ISSUER_URL is required when MEMORIA_AUTH_MODE=oidc.")
             if not self.oidc_audience:
                 raise ValueError("MEMORIA_OIDC_AUDIENCE is required when MEMORIA_AUTH_MODE=oidc.")
+        if (
+            self.mem0_llm_provider != "vllm"
+            and self.mem0_llm_api_key.strip() == "dummy"
+            and not self.mem0_llm_base_url.strip()
+        ):
+            LOGGER.warning(
+                "MEMORIA_MEM0_LLM_API_KEY uses default 'dummy' while provider=%s and base URL is empty.",
+                self.mem0_llm_provider,
+            )
+        if (
+            self.mem0_embedder_provider != "vllm"
+            and self.mem0_embedder_api_key.strip() == "dummy"
+            and not self.mem0_embedder_base_url.strip()
+        ):
+            LOGGER.warning(
+                "MEMORIA_MEM0_EMBEDDER_API_KEY uses default 'dummy' while provider=%s and base URL is empty.",
+                self.mem0_embedder_provider,
+            )
         return self

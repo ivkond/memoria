@@ -130,7 +130,8 @@ def _build_oidc_validator(settings: Settings) -> OidcTokenValidator:
             subject_claim=settings.oidc_subject_claim,
             jwks_url=settings.oidc_jwks_url,
             jwks_ttl_seconds=settings.oidc_jwks_cache_ttl_seconds,
-        )
+        ),
+        ssl_verify=settings.ssl_verify,
     )
 
 
@@ -393,6 +394,12 @@ def create_server(
     health_checker: HealthChecker | None = None,
 ) -> FastMCP:
     app_settings = settings or Settings()
+    if app_settings.auth_mode == "stub_auth":
+        LOGGER.warning(
+            "MEMORIA_AUTH_MODE=stub_auth trusts '%s' as identity input without authentication. "
+            "Use only behind a trusted proxy/gateway or during migration.",
+            app_settings.user_header_name,
+        )
     app_adapter = adapter or Mem0Adapter(app_settings)
     app_health = health_checker or HealthChecker(app_settings)
     service = MemoryService(app_adapter)

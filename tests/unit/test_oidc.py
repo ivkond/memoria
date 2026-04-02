@@ -38,6 +38,54 @@ def _jwk_from_public_key(public_key: Any, kid: str) -> dict[str, str]:
     }
 
 
+def test_default_get_json_passes_ssl_verify_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_kwargs: dict = {}
+
+    def fake_get(url: str, **kwargs) -> Any:
+        captured_kwargs.update(kwargs)
+        resp = SimpleNamespace(
+            status_code=200,
+            raise_for_status=lambda: None,
+            json=lambda: {"result": "ok"},
+        )
+        return resp
+
+    monkeypatch.setattr("memoria.oidc.httpx.get", fake_get)
+
+    validator = OidcTokenValidator(
+        OidcConfig(issuer_url="https://issuer.local", audience="aud"),
+        ssl_verify=False,
+    )
+    result = validator._get_json("https://issuer.local/.well-known/openid-configuration", 5.0)
+
+    assert result == {"result": "ok"}
+    assert captured_kwargs["verify"] is False
+
+
+def test_default_get_json_passes_ssl_verify_true(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_kwargs: dict = {}
+
+    def fake_get(url: str, **kwargs) -> Any:
+        captured_kwargs.update(kwargs)
+        resp = SimpleNamespace(
+            status_code=200,
+            raise_for_status=lambda: None,
+            json=lambda: {"result": "ok"},
+        )
+        return resp
+
+    monkeypatch.setattr("memoria.oidc.httpx.get", fake_get)
+
+    validator = OidcTokenValidator(
+        OidcConfig(issuer_url="https://issuer.local", audience="aud"),
+        ssl_verify=True,
+    )
+    result = validator._get_json("https://issuer.local/.well-known/openid-configuration", 5.0)
+
+    assert result == {"result": "ok"}
+    assert captured_kwargs["verify"] is True
+
+
 def test_validate_token_happy_path() -> None:
     private_key, public_key = _make_rsa_keypair()
     issuer = _http_url("keycloak:8080", "/realms/memoria")

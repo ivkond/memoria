@@ -11,3 +11,5 @@ data/
 .gitnexus
 .coverage
 .claude
+.idea/
+.qwen/

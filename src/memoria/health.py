@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+import ssl
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -15,18 +16,22 @@ class HealthChecker:
     def __init__(self, settings: Settings):
         self._settings = settings
 
-    @staticmethod
-    def _probe_http_endpoint(*, name: str, base_url: str) -> HealthComponent:
+    def _probe_http_endpoint(self, *, name: str, base_url: str) -> HealthComponent:
         if not base_url.strip():
             return HealthComponent(ok=False, detail=f"{name} base url is empty")
 
         probe_url = f"{base_url.rstrip('/')}/models"
         request = Request(probe_url, method="GET")
+        ssl_context: ssl.SSLContext | None = None
+        if not self._settings.ssl_verify:
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
         try:
-            with urlopen(request, timeout=2) as response:
+            with urlopen(request, timeout=2, context=ssl_context) as response:
                 return HealthComponent(ok=True, detail=f"{name} reachable via {probe_url} (HTTP {response.status})")
         except HTTPError as exc:
-            if exc.code < 500:
+            if 200 <= exc.code < 400:
                 return HealthComponent(ok=True, detail=f"{name} reachable via {probe_url} (HTTP {exc.code})")
             return HealthComponent(ok=False, detail=f"{name} unavailable via {probe_url}: HTTP {exc.code}")
         except URLError as exc:

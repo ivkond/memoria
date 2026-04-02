@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.error import HTTPError
+
 from memoria.health import HealthChecker
 from memoria.schemas import HealthComponent
 from memoria.settings import Settings
@@ -54,3 +56,50 @@ def test_health_status_degraded_when_llm_or_embedder_unavailable(monkeypatch) ->
     assert response.status == "degraded"
     assert response.checks["llm"].ok is False
     assert response.checks["embedder"].ok is True
+
+
+def test_probe_http_endpoint_marks_unauthorized_as_unavailable(monkeypatch) -> None:
+    def fake_urlopen(*_args, **_kwargs):
+        raise HTTPError(url="http://llm.local/models", code=401, msg="Unauthorized", hdrs=None, fp=None)
+
+    monkeypatch.setattr("memoria.health.urlopen", fake_urlopen)
+    checker = HealthChecker(Settings())
+
+    response = checker._probe_http_endpoint(name="llm", base_url="http://llm.local")
+
+    assert response.ok is False
+    assert "HTTP 401" in response.detail
+
+
+def test_probe_http_endpoint_uses_insecure_ssl_context_when_verify_disabled(monkeypatch) -> None:
+    captured_kwargs: dict = {}
+
+    def fake_urlopen(*_args, **kwargs):
+        captured_kwargs.update(kwargs)
+        raise HTTPError(url="https://llm.local/models", code=200, msg="OK", hdrs=None, fp=None)
+
+    monkeypatch.setattr("memoria.health.urlopen", fake_urlopen)
+    checker = HealthChecker(Settings(ssl_verify=False))
+
+    checker._probe_http_endpoint(name="llm", base_url="https://llm.local")
+
+    import ssl
+    ctx = captured_kwargs.get("context")
+    assert ctx is not None
+    assert ctx.verify_mode == ssl.CERT_NONE
+    assert ctx.check_hostname is False
+
+
+def test_probe_http_endpoint_uses_default_ssl_when_verify_enabled(monkeypatch) -> None:
+    captured_kwargs: dict = {}
+
+    def fake_urlopen(*_args, **kwargs):
+        captured_kwargs.update(kwargs)
+        raise HTTPError(url="https://llm.local/models", code=200, msg="OK", hdrs=None, fp=None)
+
+    monkeypatch.setattr("memoria.health.urlopen", fake_urlopen)
+    checker = HealthChecker(Settings(ssl_verify=True))
+
+    checker._probe_http_endpoint(name="llm", base_url="https://llm.local")
+
+    assert captured_kwargs.get("context") is None

@@ -86,3 +86,29 @@ def test_settings_reject_removed_mem0_api_key_env(monkeypatch: pytest.MonkeyPatc
 def test_settings_reject_removed_mem0_api_key_kwarg() -> None:
     with pytest.raises(ValidationError, match="MEMORIA_MEM0_API_KEY has been removed"):
         Settings(mem0_api_key="legacy-key")
+
+
+def test_settings_ssl_verify_defaults_to_true() -> None:
+    settings = Settings()
+    assert settings.ssl_verify is True
+
+
+def test_settings_ssl_verify_can_be_disabled() -> None:
+    settings = Settings(ssl_verify=False)
+    assert settings.ssl_verify is False
+
+
+def test_settings_warn_when_dummy_keys_used_with_openai_providers(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level("WARNING", logger="memoria.settings")
+
+    Settings(
+        mem0_llm_provider="openai",
+        mem0_llm_api_key="dummy",
+        mem0_llm_base_url="",
+        mem0_embedder_provider="openai",
+        mem0_embedder_api_key="dummy",
+        mem0_embedder_base_url="",
+    )
+
+    assert "MEMORIA_MEM0_LLM_API_KEY uses default 'dummy'" in caplog.text
+    assert "MEMORIA_MEM0_EMBEDDER_API_KEY uses default 'dummy'" in caplog.text

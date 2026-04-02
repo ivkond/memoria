@@ -98,7 +98,7 @@ def test_build_middlewares_uses_local_mode() -> None:
 
 def test_build_middlewares_uses_oidc_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     class FakeValidator:
-        def __init__(self, config: object) -> None:
+        def __init__(self, config: object, **kwargs: object) -> None:
             self._config = config
 
     monkeypatch.setattr("memoria.server.OidcTokenValidator", FakeValidator)
@@ -115,3 +115,53 @@ def test_build_middlewares_uses_oidc_mode(monkeypatch: pytest.MonkeyPatch) -> No
 def test_memory_id_field_uses_shared_description() -> None:
     field = server_module._memory_id_field()
     assert field.description == server_module.MEMORY_ID_DESCRIPTION
+
+
+def test_create_server_logs_warning_when_stub_auth_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    class StubAdapter:
+        def add_memory(self, *_args, **_kwargs):
+            raise AssertionError("not used in this test")
+
+        def search_memories(self, *_args, **_kwargs):
+            raise AssertionError("not used in this test")
+
+        def get_memory(self, *_args, **_kwargs):
+            raise AssertionError("not used in this test")
+
+        def get_memories(self, *_args, **_kwargs):
+            raise AssertionError("not used in this test")
+
+        def update_memory(self, *_args, **_kwargs):
+            raise AssertionError("not used in this test")
+
+        def delete_memory(self, *_args, **_kwargs):
+            raise AssertionError("not used in this test")
+
+        def delete_all_memories(self, *_args, **_kwargs):
+            raise AssertionError("not used in this test")
+
+        def list_entities(self, *_args, **_kwargs):
+            raise AssertionError("not used in this test")
+
+        def delete_entities(self, *_args, **_kwargs):
+            raise AssertionError("not used in this test")
+
+    class StubHealth:
+        def check(self):
+            raise AssertionError("not used in this test")
+
+    captured_messages: list[str] = []
+
+    def fake_warning(message: str, *_args, **_kwargs) -> None:
+        captured_messages.append(message)
+
+    monkeypatch.setattr(server_module.LOGGER, "warning", fake_warning, raising=False)
+
+    mcp = server_module.create_server(
+        settings=Settings(auth_mode="stub_auth"),
+        adapter=StubAdapter(),
+        health_checker=StubHealth(),
+    )
+
+    assert mcp is not None
+    assert any("stub_auth" in msg for msg in captured_messages)
