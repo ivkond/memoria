@@ -104,6 +104,15 @@ class UvicornThread:
         return False
 
 
+def _wait_for_healthy(base_url: str, *, timeout_seconds: float = 60) -> None:
+    _wait_until(
+        lambda: httpx.get(f"{base_url}/health", timeout=5).status_code == 200,
+        timeout_seconds=timeout_seconds,
+        interval_seconds=1.0,
+        description=f"healthy response from {base_url}/health",
+    )
+
+
 def _deterministic_embedding(text: str, dims: int) -> list[float]:
     values = [0.0] * dims
     encoded = text.encode("utf-8")
@@ -325,9 +334,11 @@ def running_server(
     mcp = create_server(settings=settings)
     app = mcp.http_app(path=settings.mcp_path, transport="streamable-http")
     runner = UvicornThread(app=app, host=settings.host, port=settings.port)
+    base_url = _local_http_url(settings.host, settings.port)
     runner.start()
+    _wait_for_healthy(base_url)
     try:
-        yield {"base_url": _local_http_url(settings.host, settings.port), "settings": settings}
+        yield {"base_url": base_url, "settings": settings}
     finally:
         runner.stop()
 
@@ -348,9 +359,11 @@ def running_server_graph_enabled(
     mcp = create_server(settings=settings)
     app = mcp.http_app(path=settings.mcp_path, transport="streamable-http")
     runner = UvicornThread(app=app, host=settings.host, port=settings.port)
+    base_url = _local_http_url(settings.host, settings.port)
     runner.start()
+    _wait_for_healthy(base_url)
     try:
-        yield {"base_url": _local_http_url(settings.host, settings.port), "settings": settings}
+        yield {"base_url": base_url, "settings": settings}
     finally:
         runner.stop()
 

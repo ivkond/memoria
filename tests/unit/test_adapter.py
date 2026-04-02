@@ -6,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 import pytest
-
 from openai import OpenAI
 
 from memoria.adapter import Mem0Adapter

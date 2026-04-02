@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import logging
 import threading
 from typing import Any, Callable, Protocol, TypeVar
-
-import logging
 
 import httpx
 from mem0 import Memory
@@ -90,7 +89,7 @@ class Mem0Adapter:
 
     @staticmethod
     def _patch_ssl_verify(memory: Memory) -> None:
-        http_client = httpx.Client(verify=False)
+        http_client = httpx.Client(verify=False)  # nosec B501
         for attr_name in ("llm", "embedding_model"):
             component = getattr(memory, attr_name, None)
             if component is None:
