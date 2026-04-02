@@ -172,6 +172,10 @@ async def _mock_chat_completions(request: Request) -> JSONResponse:
     return JSONResponse(payload)
 
 
+async def _mock_models(_request: Request) -> JSONResponse:
+    return JSONResponse({"object": "list", "data": []})
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _disable_mem0_telemetry() -> Generator[None, None, None]:
     previous = os.environ.get("MEM0_TELEMETRY")
@@ -191,6 +195,7 @@ def openai_mock_base_url() -> str:
         routes=[
             Route("/v1/embeddings", _mock_embeddings, methods=["POST"]),
             Route("/v1/chat/completions", _mock_chat_completions, methods=["POST"]),
+            Route("/v1/models", _mock_models, methods=["GET"]),
         ]
     )
     port = _find_free_port()
@@ -334,11 +339,9 @@ def running_server(
     mcp = create_server(settings=settings)
     app = mcp.http_app(path=settings.mcp_path, transport="streamable-http")
     runner = UvicornThread(app=app, host=settings.host, port=settings.port)
-    base_url = _local_http_url(settings.host, settings.port)
     runner.start()
-    _wait_for_healthy(base_url)
     try:
-        yield {"base_url": base_url, "settings": settings}
+        yield {"base_url": _local_http_url(settings.host, settings.port), "settings": settings}
     finally:
         runner.stop()
 
